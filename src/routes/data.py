@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends, UploadFile, status
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 import aiofiles
-from controllers import DataController, ProjectController
+from controllers import DataController, ProjectController, ProcessController
 from helpers import get_settings, Settings
 from models import ResponseMessage
+from .schemes import ProcessRequest
 
 import logging
 
 data_router = APIRouter(prefix="/api/v1/data", tags=["api_v1", "data"])
 
-logger = logging.getLogger()
+logger = logging.getLogger("uvicorn.error")
 
 
 def get_data_controller():
@@ -20,6 +22,10 @@ def get_project_controller():
     return ProjectController()
 
 
+def get_process_controller(project_id: str):
+    return ProcessController(project_id=project_id)
+
+
 @data_router.post("/upload/{project_id}")
 async def upload_file(
     project_id: str,
@@ -27,12 +33,8 @@ async def upload_file(
     app_settings: Settings = Depends(get_settings),
     data_controller: DataController = Depends(get_data_controller),
 ):
-    logger.info(
-        f"Received file upload request for project_id: {project_id}, file_name: {file.filename}"
-    )
     # validate the file
     is_valid, message = data_controller.validate_uplaoded_file(file=file)
-    logger.info(f"File validation result: {is_valid}, message: {message}")
 
     if not is_valid:
         return JSONResponse(
@@ -66,6 +68,38 @@ async def upload_file(
     )
 
 
-@data_router.get("/test")
-async def test_endpoint():
-    return {"message": "Test endpoint is working!"}
+@data_router.post("/process/{project_id}")
+async def process_endpoint(
+    project_id: str,
+    process_request: ProcessRequest,
+):
+    file_id = process_request.file_id
+    chunk_size = process_request.chunk_size
+    overlap_size = process_request.overlap_size
+
+    process_controller = get_process_controller(project_id=project_id)
+    try:
+        file_content = process_controller.get_file_content(file_id=file_id)
+
+        file_chunks = process_controller.process_file_content(
+            chunk_size=chunk_size, overlap_size=overlap_size, file_content=file_content
+        )
+
+        if file_chunks is None or len(file_chunks) == 0:
+            JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"message": ResponseMessage.PROCESSING_FAILED.value},
+            )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "message": ResponseMessage.PROCESSING_SUCCESS.value,
+                "chunks": jsonable_encoder(file_chunks),
+            },
+        )
+    except Exception as e:
+        logger.error(f"Error processing file: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": ResponseMessage.PROCESSING_FAILED.value},
+        )
