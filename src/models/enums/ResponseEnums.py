@@ -8,3 +8,5 @@ class ResponseMessage(Enum):
     FILE_UPLOAD_SUCCESS = "file_upload_success"
     FILE_UPLOAD_FAILED = "file_upload_failed"
     FILE_NOT_EXIST = "file_not_exist"
+    PROCESSING_SUCCESS = "processing_success"
+    PROCESSING_FAILED = "processing_failed"
