@@ -20,3 +20,16 @@ class AssetDBScheme(BaseModel):
     asset_pushed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+
+    @classmethod
+    def get_indexes(cls):
+        return [
+            {
+                "key": [
+                    ("asset_project_id", 1),
+                    ("asset_name", 1),
+                ],
+                "name": "asset_project_id_name_index_1",
+                "unique": True,
+            }
+        ]

@@ -18,3 +18,15 @@ class ProjectDBScheme(BaseModel):
         if not v.isalnum():
             raise ValueError("project_id must be alphanumeric")
         return v
+
+    @classmethod
+    def get_indexes(cls):
+        return [
+            {
+                "key": [
+                    ("project_id", 1),
+                ],
+                "name": "project_id_index_1",
+                "unique": True,
+            },
+        ]
