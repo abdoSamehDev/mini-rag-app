@@ -3,7 +3,7 @@ from typing import Optional
 from bson.objectid import ObjectId
 
 
-class ProjectDBScheme(BaseModel):
+class Project(BaseModel):
     # this is the eq in the PydanticV2 same functionality as
     # PydanticV1's Config class with arbitrary_types_allowed = True
     # Class Config:

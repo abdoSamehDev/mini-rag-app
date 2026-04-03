@@ -4,7 +4,7 @@ from bson.objectid import ObjectId
 from datetime import datetime, timezone
 
 
-class AssetDBScheme(BaseModel):
+class Asset(BaseModel):
     # this is the eq in the PydanticV2 same functionality as
     # PydanticV1's Config class with arbitrary_types_allowed = True
     # Class Config:
