@@ -11,7 +11,7 @@ class Project(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[ObjectId] = Field(None, alias="_id")
-    project_id: ObjectId
+    project_id: str = Field(..., min_length=1)
 
     @field_validator("project_id")
     def validate_project_id(cls, v):

@@ -16,7 +16,7 @@ class AssetDBController(BaseDBController):
             indexes = Asset.get_indexes()
             for index in indexes:
                 await self.collection.create_index(
-                    key=index["key"],
+                    index["key"],
                     name=index["name"],
                     unique=index["unique"],
                 )
@@ -44,7 +44,7 @@ class AssetDBController(BaseDBController):
                 else asset_project_id,
                 "asset_type": asset_type,
             }
-        )
+        ).to_list(length=None)
         if records:
             return [Asset(**record) for record in records]
         return None
@@ -61,5 +61,5 @@ class AssetDBController(BaseDBController):
             }
         )
         if record:
-            return [Asset(**record)]
+            return Asset(**record)
         return None

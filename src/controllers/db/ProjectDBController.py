@@ -1,3 +1,4 @@
+from bson.objectid import ObjectId
 from .BaseDBController import BaseDBController
 from models import DataBaseEnums, Project
 
@@ -14,7 +15,7 @@ class ProjectDBController(BaseDBController):
             indexes = Project.get_indexes()
             for index in indexes:
                 await self.collection.create_index(
-                    key=index["key"],
+                    index["key"],
                     name=index["name"],
                     unique=index["unique"],
                 )
@@ -33,7 +34,7 @@ class ProjectDBController(BaseDBController):
         return project
 
     async def get_project_or_create_one(self, project_id: str) -> Project:
-        record = await self.colletion.find_one({"project_id": project_id})
+        record = await self.collection.find_one({"project_id": project_id})
         if record is None:
             # create new project
             project = Project(project_id=project_id)
