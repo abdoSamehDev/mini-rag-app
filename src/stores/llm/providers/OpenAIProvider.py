@@ -1,4 +1,4 @@
-from llm import LLMInterface, OpenAIRolesEnum
+from llm import LLMInterface, OpenAIEnums
 from openai import OpenAI
 import logging
 
@@ -72,7 +72,7 @@ class OpenAIProvider(LLMInterface):
         else:
             message = chat_history + [
                 {
-                    "role": OpenAIRolesEnum.USER.value,
+                    "role": OpenAIEnums.USER.value,
                     "content": self.proces_text(prompt),
                 }
             ]
@@ -131,7 +131,7 @@ class OpenAIProvider(LLMInterface):
             or len(response.data) == 0
             or not response.data[0].embedding
         ):
-            self.logger.error("Invalid response from OpenAI API for embedding.")
+            self.logger.error("Error while embedding text with OpenAI API.")
             return None
 
         return response.data[0].embedding
