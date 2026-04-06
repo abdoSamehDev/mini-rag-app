@@ -8,3 +8,11 @@ from .llm import (
     DocTypeEnums as DocTypeEnums,
     LLMProviderFactory as LLMProviderFactory,
 )
+
+from .vectordb import (
+    VectorDBInterface as VectorDBInterface,
+    VectorDBProviderEnums as VectorDBProviderEnums,
+    DistanceMethodEnums as DistanceMethodEnums,
+    VectorDBProviderFactory as VectorDBProviderFactory,
+    QdrandDBProvider as QdrandDBProvider,
+)
