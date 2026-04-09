@@ -7,6 +7,7 @@ from .llm import (
     CohereEnums as CohereEnums,
     DocTypeEnums as DocTypeEnums,
     LLMProviderFactory as LLMProviderFactory,
+    TemplateParser as TemplateParser,
 )
 
 from .vectordb import (

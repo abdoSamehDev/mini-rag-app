@@ -10,3 +10,5 @@ from .providers import (
     CoHereProvider as CoHereProvider,
 )
 from .LLMProviderFactory import LLMProviderFactory as LLMProviderFactory
+
+from .templates import TemplateParser as TemplateParser
