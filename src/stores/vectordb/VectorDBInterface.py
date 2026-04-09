@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from qdrant_client import models
+from models import RetrievedDocument
 
 
 class VectorDBInterface(ABC):
@@ -62,5 +63,5 @@ class VectorDBInterface(ABC):
     @abstractmethod
     def search_by_vector(
         self, collection_name: str, vector: list, limit: int = 5
-    ) -> list[dict] | None:
+    ) -> list[RetrievedDocument] | None:
         pass

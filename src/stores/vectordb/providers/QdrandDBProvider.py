@@ -1,5 +1,6 @@
 from vectordb import VectorDBInterface, DistanceMethodEnums
 from qdrant_client import QdrantClient, models
+from models import RetrievedDocument
 
 import logging
 
@@ -138,7 +139,7 @@ class QdrandDBProvider(VectorDBInterface):
 
     def search_by_vector(
         self, collection_name: str, vector: list, limit: int = 5
-    ) -> list[dict] | None:
+    ) -> list[RetrievedDocument] | None:
         if not self.is_collection_exists(collection_name):
             self.logger.error(f"Collection {collection_name} does not exist.")
             return None
@@ -149,11 +150,19 @@ class QdrandDBProvider(VectorDBInterface):
                 collection_name=collection_name,
                 query=vector,
                 limit=limit,
-                with_payload=False,
             ).points
+            if not search_result or len(search_result) == 0:
+                self.logger.error(
+                    f"Error searching for vector in collection {collection_name}"
+                )
+                return None
         except Exception as e:
             self.logger.error(
                 f"Error searching for vector in collection {collection_name}: {e}"
             )
             return None
-        return search_result
+        self.logger.info(f"Search Results: ${search_result}")
+        return [
+            RetrievedDocument(**{"score": result.score, "text": result.payload.text})
+            for result in search_result
+        ]
