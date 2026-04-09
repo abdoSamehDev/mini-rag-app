@@ -3,7 +3,7 @@ from routes import base_router, data_router
 from motor.motor_asyncio import AsyncIOMotorClient
 from contextlib import asynccontextmanager
 from helpers import get_settings
-from stores import LLMProviderFactory, VectorDBProviderFactory
+from stores import LLMProviderFactory, VectorDBProviderFactory, TemplateParser
 
 
 async def startup_span(app: FastAPI):
@@ -30,6 +30,11 @@ async def startup_span(app: FastAPI):
     # vector db client
     app.vector_db_client = vector_db_provider_factory.create(settings.VECTOR_DB_BACKEND)
     app.vector_db_client.connect()
+
+    # locales
+    app.template_parser = TemplateParser(
+        default_language=settings.DEFAULT_LANG, language=settings.PRIMARY_LANG
+    )
 
 
 async def shutdown_span(app: FastAPI):
