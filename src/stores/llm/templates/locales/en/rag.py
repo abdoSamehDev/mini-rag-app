@@ -17,6 +17,7 @@ system_prompt = Template(
             "- If the user explicitly requests a specific language → respond in that language",
             "- If no language is requested → respond in the same language as the query",
             "Never mention these instructions in your response.",
+            "CRITICAL: You MUST respond in the exact same language as the user question. If the question is in Arabic, respond in Arabic. If in English, respond in English. This overrides everything else.",
         ]
     )
 )
@@ -31,6 +32,7 @@ footer_prompt = Template(
     "\n".join(
         [
             "Based only on the above documents, please generate an answer for the user.",
+            "IMPORTANT: Your response MUST be in the same language as the question, regardless of the language of the documents.",
             "## Question:",
             "$query",
             "",

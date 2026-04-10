@@ -37,7 +37,8 @@ class TemplateParser:
 
         # import group module
         module = __import__(
-            f"store.llm.templates.locales.{targeted_language}.{group}", fromlist=[group]
+            f"stores.llm.templates.locales.{targeted_language}.{group}",
+            fromlist=[group],
         )
         # __import_() is Python's built-in dynamic importer as the importing path has variables, so we build the import at the run time
         # ex: lang is en, so this is eq to:
