@@ -19,6 +19,6 @@ class BaseController:
     def get_vector_db_path(self, db_name: str):
         vector_db_path = os.path.join(self.vector_db_dir, db_name)
 
-        if not os.path.exists(self.vector_db_path):
-            os.makedirs(self.vector_db_path)
+        if not os.path.exists(vector_db_path):
+            os.makedirs(vector_db_path)
         return vector_db_path
