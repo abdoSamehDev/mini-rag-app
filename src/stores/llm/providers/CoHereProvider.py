@@ -1,4 +1,4 @@
-from llm import LLMInterface, CohereEnums, DocTypeEnums
+from ...llm import LLMInterface, CohereEnums, DocTypeEnums
 import cohere
 import logging
 
@@ -28,13 +28,13 @@ class CoHereProvider(LLMInterface):
 
         self.logger = logging.getLogger(__name__)
 
-    def proces_text(self, text: str):
+    def process_text(self, text: str):
         return text[: self.default_input_max_characters].strip()
 
     def set_generation_model(self, model_id: str):
         self.generation_model_id = model_id
 
-    def generate_embedding_model(self, model_id: str, embedding_size: int):
+    def set_embedding_model(self, model_id: str, embedding_size: int):
         self.embedding_model_id = model_id
         self.embedding_size = embedding_size
 
@@ -91,11 +91,11 @@ class CoHereProvider(LLMInterface):
             return None
         return response.message.content[0].text
 
-    def embed_text(self, text: str, doc_type: str = None):
+    def embed_text(self, text: str, doc_type: str = None) -> list[float] | None:
         # validate the client is initialized
         if not self.client:
             # raise ValueError("OpenAI client is not initialized.")
-            self.logger.error("OpenAI client is not initialized.")
+            self.logger.error("CoHere client is not initialized.")
             return None
         # validate the embedding model is set
         if not self.embedding_model_id:
@@ -109,7 +109,7 @@ class CoHereProvider(LLMInterface):
 
         response = self.client.embed(
             model=self.embedding_model_id,
-            texts=[self.proces_text(text)],
+            texts=[self.process_text(text)],
             input_type=input_type,
             embedding_types=["float"],
         )
@@ -129,5 +129,5 @@ class CoHereProvider(LLMInterface):
     def construct_prompt(self, prompt: str, role: str):
         return {
             "role": role,
-            "content": self.proces_text(prompt),
+            "content": self.process_text(prompt),
         }
