@@ -10,15 +10,13 @@ from controllers import (
     ChunkDBController,
     AssetDBController,
 )
-from helpers import get_settings, Settings
+from helpers import get_settings, Settings, get_logger
 from models import ResponseMessageEnums, Chunk, Asset, AssetTypeEnums
 from .schemes import ProcessRequest
 
-import logging
-
 data_router = APIRouter(prefix="/api/v1/data", tags=["api_v1", "data"])
 
-logger = logging.getLogger("uvicorn.error")
+logger = get_logger()
 
 
 def get_data_controller():
