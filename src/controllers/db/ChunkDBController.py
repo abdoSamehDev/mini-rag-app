@@ -1,7 +1,6 @@
 from .BaseDBController import BaseDBController
 from models import DataBaseEnums, Chunk
 from bson.objectid import ObjectId
-from typing import Optional
 from pymongo import InsertOne
 
 
@@ -35,7 +34,7 @@ class ChunkDBController(BaseDBController):
         chunk.id = result.inserted_id
         return chunk
 
-    async def get_chunk_by_id(self, chunk_id: str) -> Optional[Chunk]:
+    async def get_chunk_by_id(self, chunk_id: str) -> Chunk | None:
         record = await self.db_client.find_one({"_id": ObjectId(chunk_id)})
         if record:
             return Chunk(**record)
@@ -43,7 +42,7 @@ class ChunkDBController(BaseDBController):
 
     async def insert_many_chunks(
         self, chunks: list[Chunk], batch_size: int = 100
-    ) -> Optional[int]:
+    ) -> int | None:
         for i in range(0, len(chunks), batch_size):
             batch = chunks[i : i + batch_size]
             operations = [
@@ -58,3 +57,16 @@ class ChunkDBController(BaseDBController):
             {"chunk_project_id": ObjectId(project_id)}
         )
         return result.deleted_count
+
+    async def get_project_chunks(
+        self, project_id: str, page_no: int = 1, page_size: int = 50
+    ) -> list[Chunk]:
+        skip = (page_no - 1) * page_size
+        records = (
+            await self.collection.find({"chunk_project_id": project_id})
+            .skip(skip)
+            .limit(page_size)
+            .to_list(length=None)
+        )
+
+        return [Chunk(**record) for record in records]
