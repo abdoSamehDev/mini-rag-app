@@ -1,6 +1,6 @@
 from ...llm import LLMInterface, OpenAIEnums
 from openai import OpenAI
-import logging
+from helpers import get_logger
 
 
 class OpenAIProvider(LLMInterface):
@@ -28,9 +28,9 @@ class OpenAIProvider(LLMInterface):
             base_url=self.api_url,
         )
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger()
 
-    def proces_text(self, text: str):
+    def process_text(self, text: str):
         return text[: self.default_input_max_characters].strip()
 
     def set_generation_model(self, model_id: str):
@@ -68,18 +68,15 @@ class OpenAIProvider(LLMInterface):
         temperature = temperature if temperature else self.default_temperature
 
         if not chat_history or len(chat_history) == 0:
-            message = self.proces_text(prompt)
+            messages = [self.construct_prompt(prompt, OpenAIEnums.USER.value)]
         else:
-            message = chat_history + [
-                {
-                    "role": OpenAIEnums.USER.value,
-                    "content": self.proces_text(prompt),
-                }
+            messages = chat_history + [
+                self.construct_prompt(prompt, OpenAIEnums.USER.value)
             ]
 
         response = self.client.responses.create(
             model=self.generation_model_id,
-            input=message,
+            input=messages,
             max_output_tokens=max_output_tokens,
             temperature=temperature,
         )
@@ -137,8 +134,12 @@ class OpenAIProvider(LLMInterface):
         return response.data[0].embedding
 
     def construct_prompt(self, prompt: str, role: str):
-        # we are using the new OpenAI method (Response API) rather than the old one (Chat Completions) so no need to construct the prompt.
-        raise NotImplementedError(
-            "construct_prompt is not needed for OpenAIProvider. "
-            "Message formatting is handled internally by generate_text."
-        )
+        # # we are using the new OpenAI method (Response API) rather than the old one (Chat Completions) so no need to construct the prompt.
+        # raise NotImplementedError(
+        #     "construct_prompt is not needed for OpenAIProvider. "
+        #     "Message formatting is handled internally by generate_text."
+        # )
+        return {
+            "role": role,
+            "content": self.process_text(prompt),
+        }

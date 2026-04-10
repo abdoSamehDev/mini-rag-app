@@ -1,8 +1,7 @@
 from ...vectordb import VectorDBInterface, DistanceMethodEnums
 from qdrant_client import QdrantClient, models
 from models import RetrievedDocument
-
-import logging
+from helpers import get_logger
 
 
 class QdrandDBProvider(VectorDBInterface):
@@ -16,7 +15,7 @@ class QdrandDBProvider(VectorDBInterface):
         elif self.distance_method == DistanceMethodEnums.DOT.value:
             self.distance_method = models.Distance.DOT
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger()
 
     def connect(self):
         self.client = QdrantClient(path=self.db_path)

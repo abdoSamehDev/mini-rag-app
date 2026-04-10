@@ -1,6 +1,6 @@
 from ...llm import LLMInterface, CohereEnums, DocTypeEnums
 import cohere
-import logging
+from helpers import get_logger
 
 
 class CoHereProvider(LLMInterface):
@@ -26,7 +26,7 @@ class CoHereProvider(LLMInterface):
             api_key=self.api_key,
         )
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger()
 
     def process_text(self, text: str):
         return text[: self.default_input_max_characters].strip()
