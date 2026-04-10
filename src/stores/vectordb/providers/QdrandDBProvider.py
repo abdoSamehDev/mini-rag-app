@@ -1,4 +1,4 @@
-from vectordb import VectorDBInterface, DistanceMethodEnums
+from ...vectordb import VectorDBInterface, DistanceMethodEnums
 from qdrant_client import QdrantClient, models
 from models import RetrievedDocument
 
@@ -105,7 +105,7 @@ class QdrandDBProvider(VectorDBInterface):
         if metadatas is None:
             metadatas = [None] * len(texts)
         if record_ids is None:
-            record_ids = [None] * len(texts)
+            record_ids = list(range(0, len(texts)))
         for i in range(0, len(texts), batch_size):
             batch_end = i + batch_size
             batch_texts = texts[i:batch_end]
@@ -163,6 +163,6 @@ class QdrandDBProvider(VectorDBInterface):
             return None
         self.logger.info(f"Search Results: ${search_result}")
         return [
-            RetrievedDocument(**{"score": result.score, "text": result.payload.text})
+            RetrievedDocument(**{"score": result.score, "text": result.payload["text"]})
             for result in search_result
         ]

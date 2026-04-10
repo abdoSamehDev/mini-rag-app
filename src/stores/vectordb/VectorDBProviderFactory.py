@@ -1,6 +1,6 @@
 from controllers import BaseController
-from providers import QdrandDBProvider
-from VectorDBEnums import VectorDBProviderEnums
+from .providers import QdrandDBProvider
+from .VectorDBEnums import VectorDBProviderEnums
 
 
 class VectorDBProviderFactory:
