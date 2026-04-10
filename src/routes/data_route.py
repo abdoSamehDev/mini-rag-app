@@ -1,7 +1,6 @@
 import os
 from fastapi import APIRouter, Depends, UploadFile, status, Request
 from fastapi.responses import JSONResponse
-from bson.objectid import ObjectId
 import aiofiles
 from controllers import (
     DataController,
@@ -12,7 +11,7 @@ from controllers import (
     AssetDBController,
 )
 from helpers import get_settings, Settings
-from models import ResponseMessage, Project, Chunk, Asset, AssetTypeEnums
+from models import ResponseMessageEnums, Chunk, Asset, AssetTypeEnums
 from .schemes import ProcessRequest
 
 import logging
@@ -74,7 +73,7 @@ async def upload_file(
 
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessage.FILE_UPLOAD_FAILED.value},
+            content={"message": ResponseMessageEnums.FILE_UPLOAD_FAILED.value},
         )
 
     # store asset into the db
@@ -90,7 +89,7 @@ async def upload_file(
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
-            "message": ResponseMessage.FILE_UPLOAD_SUCCESS.value,
+            "message": ResponseMessageEnums.FILE_UPLOAD_SUCCESS.value,
             "file_id": str(asset_record.id),
         },
     )
@@ -134,7 +133,7 @@ async def process_endpoint(
         if asset_record is None:
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                content={"message": ResponseMessage.FILE_ID_ERROR.value},
+                content={"message": ResponseMessageEnums.FILE_ID_ERROR.value},
             )
         project_files_ids = {asset_record.id: asset_record.asset_name}
     else:
@@ -146,7 +145,7 @@ async def process_endpoint(
     if not project_files_ids or len(project_files_ids) == 0:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessage.NO_FILES_ERROR.value},
+            content={"message": ResponseMessageEnums.NO_FILES_ERROR.value},
         )
 
     # reset chunks if needed
@@ -189,7 +188,7 @@ async def process_endpoint(
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content={
-                    "message": ResponseMessage.PROCESSING_SUCCESS.value,
+                    "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
                     "inserted_records": no_record,
                     "processed_files": no_files,
                 },
@@ -198,5 +197,5 @@ async def process_endpoint(
         logger.error(f"Error processing file: {e}")
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessage.PROCESSING_FAILED.value},
+            content={"message": ResponseMessageEnums.PROCESSING_FAILED.value},
         )
