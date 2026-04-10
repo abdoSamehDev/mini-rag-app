@@ -19,3 +19,5 @@ class ResponseMessageEnums(Enum):
     VECTORDB_COLLECTION_RETRIEVED_SUCCESS = "vectordb_collection_retrieve_success"
     VECTORDB_SEARCH_ERROR = "vectordb_search_error"
     VECTORDB_SEARCH_SUCCESS = "vectordb_search_success"
+    RAG_ANSWER_ERROR = "rag_ansewr_error"
+    RAG_ANSWER_SUCCESS = "rag_ansewr_success"

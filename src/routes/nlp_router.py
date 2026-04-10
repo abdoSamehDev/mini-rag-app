@@ -3,11 +3,11 @@ from fastapi.responses import JSONResponse
 from controllers import ProjectDBController, ChunkDBController, NLPController
 from models import ResponseMessageEnums
 from .schemes import PushRequest, SearchRequest
-import logging
-
-logger = logging.getLogger("uvicorn.error")
+from helpers import get_logger
 
 nlp_router = APIRouter(prefix="/api/v1/nlp", tags=["api_v1", "nlp"])
+
+logger = get_logger()
 
 
 @nlp_router.post("/index/push/{project_id}")
@@ -157,3 +157,47 @@ async def search_index(req: Request, project_id: str, search_req: SearchRequest)
             "results": [result.dict() for result in results],
         },
     )
+
+
+@nlp_router.post("/index/answer/{project_id}")
+async def answer_rag(req: Request, project_id: str, search_req: SearchRequest):
+    logger.info("WORKING!!!!!")
+    project_db_controller = await ProjectDBController.create_instance(
+        db_client=req.app.db_client
+    )
+
+    nlp_controller = NLPController(
+        vectordb_client=req.app.vector_db_client,
+        embedding_client=req.app.embedding_client,
+        generation_client=req.app.generation_client,
+        template_parser=req.app.template_parser,
+    )
+
+    project = await project_db_controller.get_project_or_create_one(
+        project_id=project_id
+    )
+
+    if not project:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": ResponseMessageEnums.PROJECT_NOT_FOUND_ERROR.value},
+        )
+
+    answer, full_prompt, chat_history = nlp_controller.asnwer_rag_question(
+        project=project, query=search_req.text, limit=search_req.limit
+    )
+    if not answer:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"message": ResponseMessageEnums.RAG_ANSWER_ERROR.value},
+        )
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "message": ResponseMessageEnums.RAG_ANSWER_SUCCESS.value,
+                "answer": answer,
+                "full_prompt": full_prompt,
+                "chat_history": chat_history,
+            },
+        )

@@ -3,6 +3,8 @@ from typing import Any
 from .BaseController import BaseController
 from models import Project, Chunk, RetrievedDocument
 from stores import DocTypeEnums
+from stores import OpenAIEnums
+from langdetect import detect, LangDetectException
 
 import json
 
@@ -95,3 +97,70 @@ class NLPController(BaseController):
         if not results:
             return None
         return results
+
+    def asnwer_rag_question(self, project: Project, query: str, limit: int):
+
+        answer, full_prompt, chat_history = None, None, None
+
+        # step1: retrieve related docs
+        retrieved_documents = self.search_vector_db_collection(
+            project=project, text=query, limit=limit
+        )
+
+        # step2: valid step1
+        if not retrieved_documents or len(retrieved_documents) == 0:
+            return answer, full_prompt, chat_history
+
+        # step3: construct LLM prompt
+        try:
+            detected_lang = detect(query)
+            self.template_parser.language = (
+                detected_lang
+                if detected_lang in ["en", "ar"]
+                else self.template_parser.default_language
+            )
+
+        except LangDetectException:
+            pass
+
+        system_prompt = self.template_parser.get(group="rag", key="system_prompt")
+        # doc_promts = []
+        # for idx, doc in enumerate((retrieved_documents)):
+        #     doc_promts.append(
+        #         self.template_parser.get(
+        #             group="rag",
+        #             key="document_prompt",
+        #             vars={"doc_num": idx + 1, "chunk_text": doc.text},
+        #         )
+        #     )
+        doc_promts = "\n".join(
+            [
+                self.template_parser.get(
+                    group="rag",
+                    key="document_prompt",
+                    vars={"doc_num": idx + 1, "chunk_text": doc.text},
+                )
+                for idx, doc in enumerate(retrieved_documents)
+            ]
+        )
+        footer_prompt = self.template_parser.get(
+            group="rag",
+            key="footer_prompt",
+            vars={"query": query},
+        )
+
+        # step4: construct generation client promt
+        chat_history = [
+            self.generation_client.construct_prompt(
+                prompt=system_prompt, role=OpenAIEnums.SYSTEM.value
+            )
+        ]
+
+        full_prompt = "\n\n".join([doc_promts, footer_prompt])
+
+        # step5: Retrieve the Answer
+        answer = self.generation_client.generate_text(
+            prompt=full_prompt,
+            chat_history=chat_history,
+        )
+        return answer, full_prompt, chat_history
