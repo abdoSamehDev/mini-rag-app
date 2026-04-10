@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class ResponseMessage(Enum):
+class ResponseMessageEnums(Enum):
     FILE_VALIDATED_SUCCESS = "file_validate_successfully"
     FILE_TYPE_NOT_SUPPORTED = "file_type_not_supported"
     FILE_SIZE_EXCEEDED = "file_size_exceeded"
@@ -12,3 +12,10 @@ class ResponseMessage(Enum):
     PROCESSING_FAILED = "processing_failed"
     NO_FILES_ERROR = "not_found_files"
     FILE_ID_ERROR = "no_file_found_with_this_id_in_project"
+    PROJECT_NOT_FOUND_ERROR = "project_not_found"
+    INSERT_INTO_VECTORDB_ERROR = "insert_into_vectordb_error"
+    INSERT_INTO_VECTORDB_SUCCESS = "insert_into_vectordb_success"
+    VECTORDB_COLLECTION_RETRIEVED_ERROR = "vectordb_collection_retrieve_error"
+    VECTORDB_COLLECTION_RETRIEVED_SUCCESS = "vectordb_collection_retrieve_success"
+    VECTORDB_SEARCH_ERROR = "vectordb_search_error"
+    VECTORDB_SEARCH_SUCCESS = "vectordb_search_success"
