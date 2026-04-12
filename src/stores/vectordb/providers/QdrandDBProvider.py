@@ -160,7 +160,6 @@ class QdrandDBProvider(VectorDBInterface):
                 f"Error searching for vector in collection {collection_name}: {e}"
             )
             return None
-        self.logger.info(f"Search Results: ${search_result}")
         return [
             RetrievedDocument(**{"score": result.score, "text": result.payload["text"]})
             for result in search_result
