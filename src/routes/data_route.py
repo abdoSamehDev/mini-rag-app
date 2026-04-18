@@ -11,7 +11,12 @@ from controllers import (
     AssetDBController,
 )
 from helpers import get_settings, Settings, get_logger
-from models import ResponseMessageEnums, Chunk, Asset, AssetTypeEnums
+from models import (
+    ResponseMessageEnums,
+    PgChunk as Chunk,
+    PgAsset as Asset,
+    AssetTypeEnums,
+)
 from .schemes import ProcessRequest
 
 data_router = APIRouter(prefix="/api/v1/data", tags=["api_v1", "data"])
@@ -27,14 +32,14 @@ def get_project_controller():
     return ProjectController()
 
 
-def get_process_controller(project_id: str):
+def get_process_controller(project_id: int):
     return ProcessController(project_id=project_id)
 
 
 @data_router.post("/upload/{project_id}")
 async def upload_file(
     request: Request,
-    project_id: str,
+    project_id: int,
     file: UploadFile,
     app_settings: Settings = Depends(get_settings),
     data_controller: DataController = Depends(get_data_controller),
@@ -76,7 +81,7 @@ async def upload_file(
 
     # store asset into the db
     asset_resource = Asset(
-        asset_project_id=project.id,
+        asset_project_id=project.project_id,
         asset_name=file_id,
         asset_type=AssetTypeEnums.FILE.value,
         asset_size=os.path.getsize(file_path),
@@ -88,7 +93,7 @@ async def upload_file(
         status_code=status.HTTP_200_OK,
         content={
             "message": ResponseMessageEnums.FILE_UPLOAD_SUCCESS.value,
-            "file_id": str(asset_record.id),
+            "file_id": str(asset_record.asset_id),
         },
     )
 
@@ -96,7 +101,7 @@ async def upload_file(
 @data_router.post("/process/{project_id}")
 async def process_endpoint(
     request: Request,
-    project_id: str,
+    project_id: int,
     process_request: ProcessRequest,
 ):
     # setup request and controllers
@@ -121,11 +126,11 @@ async def process_endpoint(
     project_files_ids = {}
     if file_id:
         logger.info(
-            f"Processing specific file_id: {file_id} with project_id: {project.id}"
+            f"Processing specific file_id: {file_id} with project_id: {project_id}"
         )
         asset_record = await asset_db_controller.get_asset_record(
-            # asset_name=file_id, project_id=project.id
-            asset_project_id=project.id,
+            # asset_name=file_id, project_id=project_id
+            asset_project_id=project_id,
             asset_name=file_id,
         )
         if asset_record is None:
@@ -133,13 +138,15 @@ async def process_endpoint(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={"message": ResponseMessageEnums.FILE_ID_ERROR.value},
             )
-        project_files_ids = {asset_record.id: asset_record.asset_name}
+        project_files_ids = {asset_record.asset_id: asset_record.asset_name}
     else:
         project_files = await asset_db_controller.get_all_project_assets(
-            asset_project_id=project.id,
+            asset_project_id=project_id,
             asset_type=AssetTypeEnums.FILE.value,
         )
-        project_files_ids = {record.id: record.asset_name for record in project_files}
+        project_files_ids = {
+            record.asset_id: record.asset_name for record in project_files
+        }
     if not project_files_ids or len(project_files_ids) == 0:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -148,7 +155,7 @@ async def process_endpoint(
 
     # reset chunks if needed
     if do_reset == 1:
-        await chunk_db_controller.delete_chunks_by_project_id(project_id=project.id)
+        await chunk_db_controller.delete_chunks_by_project_id(project_id=project_id)
 
     # process files
     no_record = 0
@@ -173,7 +180,7 @@ async def process_endpoint(
                 Chunk(
                     chunk_text=chunk.page_content,
                     chunk_metadata=chunk.metadata,
-                    chunk_project_id=project.id,
+                    chunk_project_id=project_id,
                     chunk_asset_id=asset_id,
                     chunk_order=i + 1,
                 )

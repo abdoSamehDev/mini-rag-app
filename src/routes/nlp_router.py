@@ -11,7 +11,7 @@ logger = get_logger()
 
 
 @nlp_router.post("/index/push/{project_id}")
-async def index_project(req: Request, project_id: str, push_request: PushRequest):
+async def index_project(req: Request, project_id: int, push_request: PushRequest):
     project_db_controller = await ProjectDBController.create_instance(
         db_client=req.app.db_client
     )
@@ -43,7 +43,7 @@ async def index_project(req: Request, project_id: str, push_request: PushRequest
     idx = 0
     while has_records:
         page_chunks = await chunk_db_controller.get_project_chunks(
-            project_id=project.id, page_no=page_no
+            project_id=project.project_id, page_no=page_no
         )
         if len(page_chunks):
             page_no += 1
@@ -79,7 +79,7 @@ async def index_project(req: Request, project_id: str, push_request: PushRequest
 
 
 @nlp_router.get("/index/info/{project_id}")
-async def get_project_index_info(req: Request, project_id: str):
+async def get_project_index_info(req: Request, project_id: int):
     project_db_controller = await ProjectDBController.create_instance(
         db_client=req.app.db_client
     )
@@ -119,7 +119,7 @@ async def get_project_index_info(req: Request, project_id: str):
 
 
 @nlp_router.post("/index/search/{project_id}")
-async def search_index(req: Request, project_id: str, search_req: SearchRequest):
+async def search_index(req: Request, project_id: int, search_req: SearchRequest):
     project_db_controller = await ProjectDBController.create_instance(
         db_client=req.app.db_client
     )
@@ -160,7 +160,7 @@ async def search_index(req: Request, project_id: str, search_req: SearchRequest)
 
 
 @nlp_router.post("/index/answer/{project_id}")
-async def answer_rag(req: Request, project_id: str, search_req: SearchRequest):
+async def answer_rag(req: Request, project_id: int, search_req: SearchRequest):
     logger.info("WORKING!!!!!")
     project_db_controller = await ProjectDBController.create_instance(
         db_client=req.app.db_client
