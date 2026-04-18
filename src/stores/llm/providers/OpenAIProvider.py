@@ -88,6 +88,7 @@ class OpenAIProvider(LLMInterface):
             messages=messages,
             # max_completion_tokens=max_output_tokens,
             temperature=temperature,
+            extra_body={"think": False},
         )
 
         # validate the response and its output
@@ -160,5 +161,5 @@ class OpenAIProvider(LLMInterface):
         # )
         return {
             "role": role,
-            "content": self.process_text(prompt),
+            "content": prompt,
         }
