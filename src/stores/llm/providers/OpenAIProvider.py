@@ -125,7 +125,7 @@ class OpenAIProvider(LLMInterface):
         #     return None
         # return response.choices[0].message["content"]
 
-    def embed_text(self, text: str, doc_type: str = None):
+    def embed_text(self, text: str | list[str], doc_type: str = None):
         # validate the client is initialized
         if not self.client:
             # raise ValueError("OpenAI client is not initialized.")
@@ -136,6 +136,9 @@ class OpenAIProvider(LLMInterface):
             # raise ValueError("Embedding model is not set.")
             self.logger.error("Embedding model is not set.")
             return None
+
+        if isinstance(text, str):
+            text = [text]
 
         response = self.client.embeddings.create(
             input=text,
@@ -151,7 +154,7 @@ class OpenAIProvider(LLMInterface):
             self.logger.error("Error while embedding text with OpenAI API.")
             return None
 
-        return response.data[0].embedding
+        return [rec.embedding for rec in response.data]
 
     def construct_prompt(self, prompt: str, role: str):
         # # we are using the new OpenAI method (Response API) rather than the old one (Chat Completions) so no need to construct the prompt.
