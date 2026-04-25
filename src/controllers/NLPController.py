@@ -1,8 +1,10 @@
 from typing import Any
+from helpers import get_logger
 
 from .BaseController import BaseController
 from models import Project, Chunk, RetrievedDocument
-from stores import DocTypeEnums
+
+# from stores import DocTypeEnums
 from stores import OpenAIEnums
 from langdetect import detect, LangDetectException
 
@@ -19,16 +21,20 @@ class NLPController(BaseController):
         self.embedding_client = embedding_client
         self.template_parser = template_parser
 
+        self.logger = get_logger()
+
     def create_collection_name(self, project_id: str) -> str:
-        return f"collection_{project_id}".strip()
+        return f"collection_{self.vectordb_client.default_vector_size}_{project_id}".strip()
 
-    def reset_vector_db_collection(self, project: Project) -> bool:
+    async def reset_vector_db_collection(self, project: Project) -> bool:
         collection_name = self.create_collection_name(project_id=project.project_id)
-        return self.vectordb_client.delete_collection(collection_name=collection_name)
+        return await self.vectordb_client.delete_collection(
+            collection_name=collection_name
+        )
 
-    def get_vector_db_collection_info(self, project: Project) -> Any:
+    async def get_vector_db_collection_info(self, project: Project) -> Any:
         collection_name = self.create_collection_name(project_id=project.project_id)
-        collection_info = self.vectordb_client.get_collection_info(
+        collection_info = await self.vectordb_client.get_collection_info(
             collection_name=collection_name
         )
 
@@ -39,7 +45,7 @@ class NLPController(BaseController):
         # __dict__ is a method that most lobraries creators use as native in their library to convert the obj inot a dict
         # 2. the string that comes out of json.dumbs(), json.loads() turns it into a dict
 
-    def index_into_vector_db(
+    async def index_into_vector_db(
         self,
         project: Project,
         chunks: list[Chunk],
@@ -52,22 +58,21 @@ class NLPController(BaseController):
         # step2: manage items (chunks into points)
         texts = [c.chunk_text for c in chunks]
         metadatas = [c.chunk_metadata for c in chunks]
-        vectors = [
-            self.embedding_client.embed_text(
-                text=text, doc_type=DocTypeEnums.DOCUMENT.value
-            )
-            for text in texts
-        ]
+        # vectors = self.embedding_client.embed_text(
+        #     text=texts, doc_type=DocTypeEnums.DOCUMENT.value
+        # )
+        # OLLAMA
+        vectors = self.embedding_client.embed_text(text=texts)
 
         # step3: create collection if not exist
-        _ = self.vectordb_client.create_collection(
+        _ = await self.vectordb_client.create_collection(
             collection_name=collection_name,
             embedding_size=self.embedding_client.embedding_size,
             do_reset=do_reset,
         )
 
         # step4: insert into vector db
-        results = self.vectordb_client.insert_many(
+        results = await self.vectordb_client.insert_many(
             collection_name=collection_name,
             texts=texts,
             vectors=vectors,
@@ -76,34 +81,42 @@ class NLPController(BaseController):
         )
         return results
 
-    def search_vector_db_collection(
+    async def search_vector_db_collection(
         self, project: Project, text: str, limit: int = 10
     ) -> list[RetrievedDocument] | None:
         # step1: get collection name
         collection_name = self.create_collection_name(project_id=project.project_id)
 
         # step2: get text embedding vector (doc_type = query)
-        vector = self.embedding_client.embed_text(
-            text=text, doc_type=DocTypeEnums.QUERY.value
-        )
+        # vectors = self.embedding_client.embed_text(
+        #     text=text, doc_type=DocTypeEnums.QUERY.value
+        # )
+        # OLLAMA
+        vectors = self.embedding_client.embed_text(text=text)
         # step3: validate
-        if not vector or len(vector) == 0:
+        if not vectors or len(vectors) == 0:
             return None
 
+        if isinstance(vectors, list) and len(vectors) > 0:
+            vector = vectors[0]
+
+        if not vector:
+            return False
+
         # step4: do semantic search
-        results = self.vectordb_client.search_by_vector(
+        results = await self.vectordb_client.search_by_vector(
             collection_name=collection_name, vector=vector, limit=limit
         )
         if not results:
             return None
         return results
 
-    def asnwer_rag_question(self, project: Project, query: str, limit: int):
+    async def asnwer_rag_question(self, project: Project, query: str, limit: int):
 
         answer, full_prompt, chat_history = None, None, None
 
         # step1: retrieve related docs
-        retrieved_documents = self.search_vector_db_collection(
+        retrieved_documents = await self.search_vector_db_collection(
             project=project, text=query, limit=limit
         )
 

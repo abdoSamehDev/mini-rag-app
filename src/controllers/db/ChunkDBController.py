@@ -6,7 +6,7 @@ from models import PgChunk
 # from bson.objectid import ObjectId
 # from pymongo import InsertOne
 from sqlalchemy.future import select
-from sqlalchemy import delete
+from sqlalchemy import func, delete
 
 
 class ChunkDBController(BaseDBController):
@@ -130,3 +130,13 @@ class ChunkDBController(BaseDBController):
                 records = await session.execute(query)
                 chunks = records.scalars().all()
             return chunks
+
+    async def get_total_chunks_count(self, project_id: str) -> int:
+        async with self.db_client() as session:
+            async with session.begin():
+                count_sql = select(func.count(PgChunk.chunk_id)).where(
+                    PgChunk.chunk_project_id == project_id
+                )
+                recs_count = await session.execute(count_sql)
+                chunks_count = recs_count.scalar()
+        return chunks_count
