@@ -8,6 +8,7 @@ from .LLMEnums import (
 from .providers import (
     OpenAIProvider as OpenAIProvider,
     CoHereProvider as CoHereProvider,
+    OllamaProvider as OllamaProvider,
 )
 from .LLMProviderFactory import LLMProviderFactory as LLMProviderFactory
 
