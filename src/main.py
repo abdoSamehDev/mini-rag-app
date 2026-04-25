@@ -22,7 +22,9 @@ async def startup_span(app: FastAPI):
     )
 
     llm_provider_factory = LLMProviderFactory(config=settings)
-    vector_db_provider_factory = VectorDBProviderFactory(config=settings)
+    vector_db_provider_factory = VectorDBProviderFactory(
+        config=settings, db_client=app.db_client
+    )
 
     # generation client
     app.generation_client = llm_provider_factory.create(
@@ -39,7 +41,7 @@ async def startup_span(app: FastAPI):
     )
     # vector db client
     app.vector_db_client = vector_db_provider_factory.create(settings.VECTOR_DB_BACKEND)
-    app.vector_db_client.connect()
+    await app.vector_db_client.connect()
 
     # locales
     app.template_parser = TemplateParser(
@@ -50,7 +52,7 @@ async def startup_span(app: FastAPI):
 async def shutdown_span(app: FastAPI):
     app.mongo_conn.close()
     # vector db client
-    app.vector_db_client.disconnect()
+    await app.vector_db_client.disconnect()
     # postgres
     await app.db_engine.dispose()
 
