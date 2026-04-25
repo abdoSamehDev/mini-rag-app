@@ -74,7 +74,8 @@ class AssetDBController(BaseDBController):
                     PgAsset.asset_project_id == asset_project_id,
                     PgAsset.asset_type == asset_type,
                 )
-                assets = await session.execute(query).scalars().all()
+                records = await session.execute(query)
+                assets = records.scalars().all()
         return assets
 
     async def get_asset_record(
