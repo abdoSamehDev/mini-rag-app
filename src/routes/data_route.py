@@ -9,6 +9,7 @@ from controllers import (
     ProjectDBController,
     ChunkDBController,
     AssetDBController,
+    NLPController,
 )
 from helpers import get_settings, Settings, get_logger
 from models import (
@@ -115,6 +116,12 @@ async def process_endpoint(
     )
     asset_db_controller = await AssetDBController.create_instance(request.app.db_client)
     chunk_db_controller = await ChunkDBController.create_instance(request.app.db_client)
+    nlp_controller = NLPController(
+        vectordb_client=request.app.vector_db_client,
+        generation_client=request.app.generation_client,
+        embedding_client=request.app.embedding_client,
+        template_parser=request.app.template_parser,
+    )
 
     process_controller = get_process_controller(project_id=project_id)
 
@@ -155,7 +162,15 @@ async def process_endpoint(
 
     # reset chunks if needed
     if do_reset == 1:
-        await chunk_db_controller.delete_chunks_by_project_id(project_id=project_id)
+        # Delete the associated vectors collection
+        collection_name = nlp_controller.create_collection_name(project_id=project_id)
+        logger.info(f"Deleting collection: {collection_name}")
+        _ = await request.app.vector_db_client.delete_collection(
+            collection_name=collection_name
+        )
+
+        # Delete the associated chunks
+        _ = await chunk_db_controller.delete_chunks_by_project_id(project_id=project_id)
 
     # process files
     no_record = 0
