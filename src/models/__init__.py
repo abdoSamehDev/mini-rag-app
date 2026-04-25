@@ -12,4 +12,5 @@ from .db_schemes import (
     PgProject as PgProject,
     PgAsset as PgAsset,
     PgChunk as PgChunk,
+    PgRetrievedDocument as PgRetrievedDocument,
 )

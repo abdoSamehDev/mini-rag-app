@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from qdrant_client import models
-from models import RetrievedDocument
+# from qdrant_client import models
+# from models import RetrievedDocument
 
 
 class VectorDBInterface(ABC):
@@ -17,11 +17,11 @@ class VectorDBInterface(ABC):
         pass
 
     @abstractmethod
-    def list_all_collections(self) -> models.CollectionsResponse:
+    def list_all_collections(self) -> list:
         pass
 
     @abstractmethod
-    def get_collection_info(self, collection_name: str) -> models.CollectionInfo:
+    def get_collection_info(self, collection_name: str) -> dict:
         pass
 
     @abstractmethod
@@ -63,5 +63,5 @@ class VectorDBInterface(ABC):
     @abstractmethod
     def search_by_vector(
         self, collection_name: str, vector: list, limit: int = 5
-    ) -> list[RetrievedDocument] | None:
+    ) -> list | None:
         pass
