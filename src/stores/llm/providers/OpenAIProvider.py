@@ -75,37 +75,31 @@ class OpenAIProvider(LLMInterface):
             ]
 
         # FOR THE REMOTE MODELS APIs
-        # response = self.client.responses.create(
-        #     model=self.generation_model_id,
-        #     input=messages,
-        #     max_output_tokens=max_output_tokens,
-        #     temperature=temperature,
-        # )
-
-        # FOR OLLAMA WITH OPENAI (LOCAL MODELS)
-        response = self.client.chat.completions.create(
+        response = self.client.responses.create(
             model=self.generation_model_id,
-            messages=messages,
-            # max_completion_tokens=max_output_tokens,
+            input=messages,
+            max_output_tokens=max_output_tokens,
             temperature=temperature,
-            extra_body={"think": False},
         )
 
+        # FOR OLLAMA WITH OPENAI (LOCAL MODELS)
+        # response = self.client.chat.completions.create(
+        #     model=self.generation_model_id,
+        #     messages=messages,
+        #     # max_completion_tokens=max_output_tokens,
+        #     temperature=temperature,
+        #     extra_body={"think": False},
+        # )
+
         # validate the response and its output
-        if (
-            not response
-            or not response.choices
-            or len(response.choices) == 0
-            or not response.choices[0].message
-            or not response.choices[0].message.content
-        ):
+        if not response or not response.output_text or len(response.output_text) == 0:
             self.logger.error("Error while generating text with OpenAI API.")
             return None
-        # # FOR THE REMOTE MODELS APIs
-        # return response.output_text
+        # FOR THE REMOTE MODELS APIs
+        return response.output_text
 
-        # FOR OLLAMA WITH OPENAI (LOCAL MODELS)
-        return response.choices[0].message.content
+        ## FOR OLLAMA WITH OPENAI (LOCAL MODELS)
+        # return response.choices[0].message.content
 
         # chat_history.append(self.construct_prompt(prompt, OpenAIRolesEnum.USER.value))
 

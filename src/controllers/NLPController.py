@@ -4,7 +4,7 @@ from helpers import get_logger
 from .BaseController import BaseController
 from models import Project, Chunk, RetrievedDocument
 
-# from stores import DocTypeEnums
+from stores import DocTypeEnums
 from stores import OpenAIEnums
 from langdetect import detect, LangDetectException
 
@@ -58,11 +58,11 @@ class NLPController(BaseController):
         # step2: manage items (chunks into points)
         texts = [c.chunk_text for c in chunks]
         metadatas = [c.chunk_metadata for c in chunks]
-        # vectors = self.embedding_client.embed_text(
-        #     text=texts, doc_type=DocTypeEnums.DOCUMENT.value
-        # )
-        # OLLAMA
-        vectors = self.embedding_client.embed_text(text=texts)
+        vectors = self.embedding_client.embed_text(
+            text=texts, doc_type=DocTypeEnums.DOCUMENT.value
+        )
+        # # OLLAMA
+        # vectors = self.embedding_client.embed_text(text=texts)
 
         # step3: create collection if not exist
         _ = await self.vectordb_client.create_collection(
@@ -88,11 +88,11 @@ class NLPController(BaseController):
         collection_name = self.create_collection_name(project_id=project.project_id)
 
         # step2: get text embedding vector (doc_type = query)
-        # vectors = self.embedding_client.embed_text(
-        #     text=text, doc_type=DocTypeEnums.QUERY.value
-        # )
-        # OLLAMA
-        vectors = self.embedding_client.embed_text(text=text)
+        vectors = self.embedding_client.embed_text(
+            text=text, doc_type=DocTypeEnums.QUERY.value
+        )
+        # # OLLAMA
+        # vectors = self.embedding_client.embed_text(text=text)
         # step3: validate
         if not vectors or len(vectors) == 0:
             return None
