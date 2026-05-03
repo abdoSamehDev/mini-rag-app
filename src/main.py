@@ -6,9 +6,26 @@ from helpers import get_settings
 from stores import LLMProviderFactory, VectorDBProviderFactory, TemplateParser
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from utils import setup_metrics
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup app
+    await startup_span(app)
+    # shutdown app
+    yield
+    await shutdown_span(app)
+
+
+app = FastAPI(lifespan=lifespan)
+
+# Setup Prometheus Metrics
+setup_metrics(app)
 
 
 async def startup_span(app: FastAPI):
+
     settings = get_settings()
 
     app.mongo_conn = AsyncIOMotorClient(settings.MONGODB_URL)
@@ -55,18 +72,6 @@ async def shutdown_span(app: FastAPI):
     await app.vector_db_client.disconnect()
     # postgres
     await app.db_engine.dispose()
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # startup app
-    await startup_span(app)
-    # shutdown app
-    yield
-    await shutdown_span(app)
-
-
-app = FastAPI(lifespan=lifespan)
 
 
 app.include_router(base_router)
