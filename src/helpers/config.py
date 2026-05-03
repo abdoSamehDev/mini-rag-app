@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     POSTGRES_MAIN_DATABASE: str
 
     GENERATION_BACKEDND: str
+    GENERATION_BACKEDND_LITERAL: list[str] = None
     EMBEDDING_BACKEDND: str
+    EMBEDDING_BACKEDND_LITERAL: list[str] = None
 
     OPENAI_API_KEY: str = None
     OPENAI_API_URL: str = None

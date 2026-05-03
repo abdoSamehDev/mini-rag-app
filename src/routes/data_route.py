@@ -151,9 +151,15 @@ async def process_endpoint(
             asset_project_id=project_id,
             asset_type=AssetTypeEnums.FILE.value,
         )
+        logger.info(
+            f"Processing all files for project_id: {project_id}, total files: {len(project_files)}"
+        )
         project_files_ids = {
             record.asset_id: record.asset_name for record in project_files
         }
+        logger.info(
+            f"Processing all files for project_id: {project_id}, total project_files_ids: {project_files_ids}"
+        )
     if not project_files_ids or len(project_files_ids) == 0:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -164,7 +170,7 @@ async def process_endpoint(
     if do_reset == 1:
         # Delete the associated vectors collection
         collection_name = nlp_controller.create_collection_name(project_id=project_id)
-        logger.info(f"Deleting collection: {collection_name}")
+        # logger.info(f"Deleting collection: {collection_name}")
         _ = await request.app.vector_db_client.delete_collection(
             collection_name=collection_name
         )
@@ -205,14 +211,14 @@ async def process_endpoint(
                 chunks=file_chunks_records
             )
             no_files += 1
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={
-                    "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
-                    "inserted_records": no_record,
-                    "processed_files": no_files,
-                },
-            )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
+                "inserted_records": no_record,
+                "processed_files": no_files,
+            },
+        )
     except Exception as e:
         logger.error(f"Error processing file: {e}")
         return JSONResponse(

@@ -21,6 +21,8 @@ async def index_project(req: Request, project_id: int, push_request: PushRequest
         db_client=req.app.db_client
     )
 
+    logger.info(f"EMBEDDING CLIENT: {req.app.embedding_client}")
+
     nlp_controller = NLPController(
         vectordb_client=req.app.vector_db_client,
         embedding_client=req.app.embedding_client,
@@ -56,11 +58,17 @@ async def index_project(req: Request, project_id: int, push_request: PushRequest
     total_chunks_count = await chunk_db_controller.get_total_chunks_count(
         project_id=project_id
     )
+
+    logger.info(f"Total chunks for {collection_name}: {total_chunks_count}")
     pbar = tqdm(total=total_chunks_count, desc="Vector Indexing", position=0)
 
     while has_records:
+        logger.info(f"Getting project chunks for project id: {project_id}")
         page_chunks = await chunk_db_controller.get_project_chunks(
             project_id=project.project_id, page_no=page_no
+        )
+        logger.info(
+            f"Processing page {page_no} with {len(page_chunks)} chunks for project_id: {project_id}"
         )
         if len(page_chunks):
             page_no += 1

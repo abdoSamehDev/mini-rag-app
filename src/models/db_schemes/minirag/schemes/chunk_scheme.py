@@ -1,0 +1,49 @@
+from .minirag_base_scheme import SQLAlchemyBase
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func, Index
+from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+import uuid
+from pydantic import BaseModel
+
+
+class Chunk(SQLAlchemyBase):
+    __tablename__ = "chunks"
+
+    #  id: Optional[ObjectId] = Field(None, alias="_id")
+    # chunk_project_id: ObjectId
+    # chunk_asset_id: ObjectId
+    # chunk_text: str = Field(..., min_length=1)
+    # chunk_metadata: dict
+    # chunk_order: int = Field(..., gt=0)
+
+    chunk_id = Column(Integer, primary_key=True, autoincrement=True)
+    chunk_uuid = Column(
+        UUID(as_uuid=True), default=uuid.uuid4, unique=True, nullable=False
+    )
+
+    chunk_project_id = Column(
+        Integer, ForeignKey("projects.project_id"), nullable=False
+    )
+    chunk_asset_id = Column(Integer, ForeignKey("assets.asset_id"), nullable=False)
+
+    chunk_text = Column(String, nullable=False)
+    chunk_order = Column(Integer, nullable=False)
+    chunk_metadata = Column(JSONB, nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    project = relationship("Project", back_populates="chunks")
+    asset = relationship("Asset", back_populates="chunks")
+
+    __table_args__ = (
+        Index("ix_chunk_project_id", chunk_project_id),
+        Index("ix_chunk_asset_id", chunk_asset_id),
+    )
+
+
+class RetrievedDocument(BaseModel):
+    text: str
+    score: float
