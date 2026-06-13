@@ -7,11 +7,13 @@ class CoHereProvider(LLMInterface):
     def __init__(
         self,
         api_key: str,
+        api_url: str = None,
         default_input_max_characters: int = 1000,
         default_output_max_tokens: int = 1000,
         default_temperature: float = 0.1,
     ):
         self.api_key = api_key
+        self.api_url = api_url
 
         self.default_input_max_characters = default_input_max_characters
         self.default_output_max_tokens = default_output_max_tokens
@@ -52,7 +54,7 @@ class CoHereProvider(LLMInterface):
         # validate the client is initialized
         if not self.client:
             # raise ValueError("OpenAI client is not initialized.")
-            self.logger.error("OpenAI client is not initialized.")
+            self.logger.error("CoHere client is not initialized.")
             return None
         # validate the generation model is set
         if not self.generation_model_id:
@@ -91,7 +93,9 @@ class CoHereProvider(LLMInterface):
             return None
         return response.message.content[0].text
 
-    def embed_text(self, text: str, doc_type: str = None) -> list[float] | None:
+    def embed_text(
+        self, text: str | list[str], doc_type: str = None
+    ) -> list[float] | None:
         # validate the client is initialized
         if not self.client:
             # raise ValueError("OpenAI client is not initialized.")
@@ -107,9 +111,15 @@ class CoHereProvider(LLMInterface):
         if doc_type == DocTypeEnums.QUERY.value:
             input_type = CohereEnums.QUERY.value
 
+        if isinstance(text, str):
+            text = [text]
+
+        text_inputs = [{"content": [{"type": "text", "text": t}]} for t in text]
+
         response = self.client.embed(
             model=self.embedding_model_id,
-            texts=[self.process_text(text)],
+            inputs=text_inputs,
+            # texts=[text],
             input_type=input_type,
             embedding_types=["float"],
         )
@@ -124,10 +134,10 @@ class CoHereProvider(LLMInterface):
             self.logger.error("Error while embedding text with CoHere.")
             return None
 
-        return response.embeddings.float[0]
+        return response.embeddings.float
 
     def construct_prompt(self, prompt: str, role: str):
         return {
             "role": role,
-            "content": self.process_text(prompt),
+            "content": prompt,
         }

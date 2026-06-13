@@ -9,4 +9,9 @@ from .db_schemes import (
     Chunk as Chunk,
     Project as Project,
     RetrievedDocument as RetrievedDocument,
+    PgProject as PgProject,
+    PgAsset as PgAsset,
+    PgChunk as PgChunk,
+    PgRetrievedDocument as PgRetrievedDocument,
+    CeleryTaskExecution as CeleryTaskExecution,
 )

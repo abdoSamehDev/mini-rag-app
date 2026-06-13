@@ -1,26 +1,386 @@
-services:
-  mongodb:
-    image: mongo:7.0.31-jammy
+# services:
+#   mongodb:
+#     image: mongo:7.0.31-jammy
 
-    container_name: mongodb
+#     container_name: mongodb
+
+#     ports:
+#       - "27007:27017"
+
+#     volumes:
+#       - mongodata:/data/db
+    
+#     environment:
+#       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+#       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+
+#     networks:
+#       - backend
+
+#     restart: always
+
+#   pgvector:
+#     image: pgvector/pgvector:0.8.2-pg18-trixie
+
+#     container_name: pgvector
+
+#     ports:
+#       - "5432:5432"
+
+#     volumes:
+#       - pgvector_data:/var/lib/postgresql
+
+#     environment:
+#       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+#     networks:
+#       - backend
+
+#     restart: always
+  
+# networks:
+#   backend:
+
+# volumes:
+#   mongodata:
+#   pgvector_data:
+
+services:
+  #FastAPI App
+  fastapi:
+    build:
+      context: ..
+      dockerfile: docker/minirag/Dockerfile
+
+    container_name: fastapi
 
     ports:
-      - "27007:27017"
-
-    volumes:
-      - mongodata:/data/db
+      - "8000:8000"
     
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - fastapi_data:/app/assets
+    
+    env_file:
+      - ./env/.env.app
 
     networks:
       - backend
 
     restart: always
+
+    depends_on:
+      pgvector:
+        condition: service_healthy
+
+  #Celery Worker (you can define more than worker (ex: one sperated worker for each queue))
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: docker/minirag/Dockerfile
+    container_name: celery-worker
+    volumes:
+      - fastapi_data:/app/assets
+    
+    env_file:
+      - ./env/.env.app
+
+    networks:
+      - backend
+
+    restart: always
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
+    
+    command: ["python", "-m", "celery", "-A", "celery_app", "worker", "--queues=default,file_processing,data_indexing", "--loglevel=info"]
+
+    #Celery Beat 
+  celery-beat:
+    build:
+      context: ..
+      dockerfile: docker/minirag/Dockerfile
+    container_name: celery-beat
+    volumes:
+      - fastapi_data:/app/assets
+      - celery_beat_data:/app/celerybeat
+    
+    env_file:
+      - ./env/.env.app
+
+    networks:
+      - backend
+
+    restart: always
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    
+    command: ["python", "-m", "celery", "-A", "celery_app", "beat", "--loglevel=info"]
+
+    #Celery Flower
+  flower:
+    build:
+      context: ..
+      dockerfile: docker/minirag/Dockerfile
+    container_name: flower
+    ports:
+      - "5555:5555"
+    volumes:
+      - fastapi_data:/app/assets
+    
+    env_file:
+      - ./env/.env.app
+
+    networks:
+      - backend
+
+    restart: always
+
+    depends_on:
+      - rabbitmq
+      - celery-worker
+    
+    command: ["python", "-m", "celery", "-A", "celery_app", "flower", "--conf=flowerconfig.py"]
+
+  #Nginix Reverse Proxy
+  nginx:
+    image: nginx:stable-trixie-perl
+
+    container_name: nginx
+
+    ports:
+      - "80:80"
+    
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    
+    depends_on:
+      - fastapi
+    
+    networks:
+      - backend
+    
+    restart: always
+
+  #PostgreSQL (PGVector)
+  pgvector:
+    image: pgvector/pgvector:0.8.2-pg18-trixie
+
+    container_name: pgvector
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - "pgvector:/var/lib/postgresql"
+
+    env_file:
+      - ./env/.env.postgres
+
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+    networks:
+      - backend
+
+    restart: always
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s #check every 5 secs
+      timeout: 5s #consider failed if no response in 5 secs
+      retries: 5 #retry 5 times before deciding failure
+      start_period: 10s #wait 10 secs before starting check health
+
+  #Qdrant (VectorDB)
+  qdrant:
+    image: qdrant/qdrant:v1.17
+
+    container_name: qdrant
+
+    ports:
+      - "6333:6333"  
+      - "6334:6334"
+    
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+    networks:
+      - backend
+    
+    restart: always
+
+  #Prometheus (Monitoring)
+  prometheus:
+    image: prom/prometheus:v3.11.2
+
+    container_name: prometheus
+
+    ports:
+      - "9090:9090"
+
+    volumes:
+      - prometheus_data:/prometheus
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    
+    networks:
+      - backend
+
+    restart: always
+
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/consoles_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+
+  #Grafana (Prometheus Visualization)
+  grafana:
+    image: grafana/grafana:13.1.0-24866141508-ubuntu
+
+    container_name: grafana
+
+    ports:
+      - "3000:3000"
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+    
+    env_file:
+      - ./env/.env.grafana
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - backend
+
+    restart: always
+    
+
+  #Node Exporter (Host Metrics)
+  node-exporter:
+    image: prom/node-exporter:v1.11.1
+
+    container_name: node-exporter
+
+    ports:
+      - "9100:9100"
+    
+    volumes:
+      - /proc:/host/proc:ro #process (ro for read-only)
+      - /sys:/host/sys:ro #system
+      - /:/rootfs:ro #root filesystem
+    
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)" #rgex to exclude system path stuff from metrics
+    
+    networks:
+      - backend
+
+    restart: always
+
+  #PostgreSQL Exporter (Postgres Metrics)
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.19.1
+
+    container_name: postgres-exporter
+
+    ports:
+      - "9187:9187"
+
+    env_file:
+      - ./env/.env.postgres-exporter
+
+    depends_on:
+      - pgvector
+
+    networks:
+      - backend
+
+    restart: always
+
+    # RabbitMQ (Message Broker)
+  rabbitmq:
+    image: rabbitmq:4.2.6-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    env_file:
+      - ./env/.env.rabbitmq
+    networks:
+      - backend
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      timeout: 10s
+      retries: 5
+
+  # Redis (Results Backend & Cache)
+  redis:
+    image: redis:8.6-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    env_file:
+      - ./env/.env.redis
+    networks:
+      - backend
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 5
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-minirag_redis_2222}"]
   
+  # ollama:
+  #   image: ollama/ollama:0.23.0-rocm
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   container_name: ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - backend
+  #   restart: always
+
 networks:
   backend:
+    driver: bridge
 
+
+#list docker volumes only not local mounted volumes
 volumes:
-  mongodata:
+  ollama_data:
+  fastapi_data:
+  pgvector:
+  qdrant_data:
+  prometheus_data:
+  grafana_data:
+  rabbitmq_data:
+  redis_data:

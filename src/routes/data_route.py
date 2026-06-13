@@ -7,12 +7,16 @@ from controllers import (
     ProjectController,
     ProcessController,
     ProjectDBController,
-    ChunkDBController,
     AssetDBController,
 )
 from helpers import get_settings, Settings, get_logger
-from models import ResponseMessageEnums, Chunk, Asset, AssetTypeEnums
+from models import (
+    ResponseMessageEnums,
+    PgAsset as Asset,
+    AssetTypeEnums,
+)
 from .schemes import ProcessRequest
+from tasks import process_project_files, process_and_push_workflow
 
 data_router = APIRouter(prefix="/api/v1/data", tags=["api_v1", "data"])
 
@@ -27,14 +31,14 @@ def get_project_controller():
     return ProjectController()
 
 
-def get_process_controller(project_id: str):
+def get_process_controller(project_id: int):
     return ProcessController(project_id=project_id)
 
 
 @data_router.post("/upload/{project_id}")
 async def upload_file(
     request: Request,
-    project_id: str,
+    project_id: int,
     file: UploadFile,
     app_settings: Settings = Depends(get_settings),
     data_controller: DataController = Depends(get_data_controller),
@@ -76,7 +80,7 @@ async def upload_file(
 
     # store asset into the db
     asset_resource = Asset(
-        asset_project_id=project.id,
+        asset_project_id=project.project_id,
         asset_name=file_id,
         asset_type=AssetTypeEnums.FILE.value,
         asset_size=os.path.getsize(file_path),
@@ -88,7 +92,7 @@ async def upload_file(
         status_code=status.HTTP_200_OK,
         content={
             "message": ResponseMessageEnums.FILE_UPLOAD_SUCCESS.value,
-            "file_id": str(asset_record.id),
+            "file_id": str(asset_record.asset_id),
         },
     )
 
@@ -96,7 +100,7 @@ async def upload_file(
 @data_router.post("/process/{project_id}")
 async def process_endpoint(
     request: Request,
-    project_id: str,
+    project_id: int,
     process_request: ProcessRequest,
 ):
     # setup request and controllers
@@ -105,95 +109,41 @@ async def process_endpoint(
     overlap_size = process_request.overlap_size
     do_reset = process_request.do_reset
 
-    project_db_controller = await ProjectDBController.create_instance(
-        request.app.db_client
+    task = process_project_files.delay(
+        project_id=project_id,
+        file_id=file_id,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size,
+        do_reset=do_reset,
     )
-    asset_db_controller = await AssetDBController.create_instance(request.app.db_client)
-    chunk_db_controller = await ChunkDBController.create_instance(request.app.db_client)
 
-    process_controller = get_process_controller(project_id=project_id)
-
-    # get the project from db
-    project = await project_db_controller.get_project_or_create_one(
-        project_id=project_id
+    return JSONResponse(
+        content={
+            "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
+            "task_id": task.id,
+        },
     )
-    # get file to process
-    project_files_ids = {}
-    if file_id:
-        logger.info(
-            f"Processing specific file_id: {file_id} with project_id: {project.id}"
-        )
-        asset_record = await asset_db_controller.get_asset_record(
-            # asset_name=file_id, project_id=project.id
-            asset_project_id=project.id,
-            asset_name=file_id,
-        )
-        if asset_record is None:
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={"message": ResponseMessageEnums.FILE_ID_ERROR.value},
-            )
-        project_files_ids = {asset_record.id: asset_record.asset_name}
-    else:
-        project_files = await asset_db_controller.get_all_project_assets(
-            asset_project_id=project.id,
-            asset_type=AssetTypeEnums.FILE.value,
-        )
-        project_files_ids = {record.id: record.asset_name for record in project_files}
-    if not project_files_ids or len(project_files_ids) == 0:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessageEnums.NO_FILES_ERROR.value},
-        )
 
-    # reset chunks if needed
-    if do_reset == 1:
-        await chunk_db_controller.delete_chunks_by_project_id(project_id=project.id)
 
-    # process files
-    no_record = 0
-    no_files = 0
+@data_router.post("/process-and-push/{project_id}")
+async def process_and_push_endpoint(project_id: int, process_request: ProcessRequest):
+    # setup request and controllers
+    file_id = process_request.file_id
+    chunk_size = process_request.chunk_size
+    overlap_size = process_request.overlap_size
+    do_reset = process_request.do_reset
 
-    try:
-        for asset_id, file_id in project_files_ids.items():
-            file_content = process_controller.get_file_content(file_id=file_id)
-            if file_content is None:
-                logger.error(f"No content found for file_id: {file_id}")
-                continue
-            file_chunks = process_controller.process_file_content(
-                chunk_size=chunk_size,
-                overlap_size=overlap_size,
-                file_content=file_content,
-            )
+    workflow_task = process_and_push_workflow.delay(
+        project_id=project_id,
+        file_id=file_id,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size,
+        do_reset=do_reset,
+    )
 
-            if file_chunks is None or len(file_chunks) == 0:
-                logger.error(f"Error while chunking file: {file_id}")
-                continue
-            file_chunks_records = [
-                Chunk(
-                    chunk_text=chunk.page_content,
-                    chunk_metadata=chunk.metadata,
-                    chunk_project_id=project.id,
-                    chunk_asset_id=asset_id,
-                    chunk_order=i + 1,
-                )
-                for i, chunk in enumerate(file_chunks)
-            ]
-            no_record += await chunk_db_controller.insert_many_chunks(
-                chunks=file_chunks_records
-            )
-            no_files += 1
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={
-                    "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
-                    "inserted_records": no_record,
-                    "processed_files": no_files,
-                },
-            )
-    except Exception as e:
-        logger.error(f"Error processing file: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessageEnums.PROCESSING_FAILED.value},
-        )
+    return JSONResponse(
+        content={
+            "message": ResponseMessageEnums.PROCESS_AND_PUSH_WORKFLOW_READY.value,
+            "workflow_task_id": workflow_task.id,
+        },
+    )

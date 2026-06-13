@@ -5,10 +5,18 @@ from helpers import get_logger
 
 
 class QdrandDBProvider(VectorDBInterface):
-    def __init__(self, db_path: str, distance_method: str):
+    def __init__(
+        self,
+        db_client,
+        default_vector_size: int = 786,
+        distance_method: str = None,
+        index_threshold: int = 100,
+    ):
         self.client = None
-        self.db_path = db_path
+        self.db_client = db_client
         self.distance_method = None
+        self.index_threshold = index_threshold
+        self.default_vector_size = default_vector_size
 
         if distance_method == DistanceMethodEnums.COSINE.value:
             self.distance_method = models.Distance.COSINE
@@ -17,25 +25,26 @@ class QdrandDBProvider(VectorDBInterface):
 
         self.logger = get_logger()
 
-    def connect(self):
-        self.client = QdrantClient(path=self.db_path)
+    async def connect(self):
+        self.client = QdrantClient(path=self.db_client)
 
-    def disconnect(self):
+    async def disconnect(self):
         self.client = None
 
-    def is_collection_exists(self, collection_name: str) -> bool:
+    async def is_collection_exists(self, collection_name: str) -> bool:
         return self.client.collection_exists(collection_name=collection_name)
 
-    def list_all_collections(self) -> models.CollectionsResponse:
+    async def list_all_collections(self) -> list:
         return self.client.get_collections()
 
-    def get_collection_info(self, collection_name: str) -> models.CollectionInfo:
+    async def get_collection_info(self, collection_name: str) -> dict:
         return self.client.get_collection(collection_name=collection_name)
 
-    def delete_collection(self, collection_name: str) -> bool:
+    async def delete_collection(self, collection_name: str) -> bool:
+        self.logger.info(f"Deleting collection {collection_name} from QdrantDB")
         return self.client.delete_collection(collection_name=collection_name)
 
-    def create_collection(
+    async def create_collection(
         self,
         collection_name: str,
         embedding_size: int,
@@ -56,7 +65,7 @@ class QdrandDBProvider(VectorDBInterface):
                 return False
         return True
 
-    def insert_one(
+    async def insert_one(
         self,
         collection_name: str,
         text: str,
@@ -89,7 +98,7 @@ class QdrandDBProvider(VectorDBInterface):
             return False
         return True
 
-    def insert_many(
+    async def insert_many(
         self,
         collection_name: str,
         texts: list[str],
@@ -136,9 +145,9 @@ class QdrandDBProvider(VectorDBInterface):
                 return False
         return True
 
-    def search_by_vector(
+    async def search_by_vector(
         self, collection_name: str, vector: list, limit: int = 5
-    ) -> list[RetrievedDocument] | None:
+    ) -> list | None:
         if not self.is_collection_exists(collection_name):
             self.logger.error(f"Collection {collection_name} does not exist.")
             return None

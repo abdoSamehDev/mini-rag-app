@@ -75,36 +75,31 @@ class OpenAIProvider(LLMInterface):
             ]
 
         # FOR THE REMOTE MODELS APIs
-        # response = self.client.responses.create(
-        #     model=self.generation_model_id,
-        #     input=messages,
-        #     max_output_tokens=max_output_tokens,
-        #     temperature=temperature,
-        # )
-
-        # FOR OLLAMA WITH OPENAI (LOCAL MODELS)
-        response = self.client.chat.completions.create(
+        response = self.client.responses.create(
             model=self.generation_model_id,
-            messages=messages,
-            # max_completion_tokens=max_output_tokens,
+            input=messages,
+            max_output_tokens=max_output_tokens,
             temperature=temperature,
         )
 
+        # FOR OLLAMA WITH OPENAI (LOCAL MODELS)
+        # response = self.client.chat.completions.create(
+        #     model=self.generation_model_id,
+        #     messages=messages,
+        #     # max_completion_tokens=max_output_tokens,
+        #     temperature=temperature,
+        #     extra_body={"think": False},
+        # )
+
         # validate the response and its output
-        if (
-            not response
-            or not response.choices
-            or len(response.choices) == 0
-            or not response.choices[0].message
-            or not response.choices[0].message.content
-        ):
+        if not response or not response.output_text or len(response.output_text) == 0:
             self.logger.error("Error while generating text with OpenAI API.")
             return None
-        # # FOR THE REMOTE MODELS APIs
-        # return response.output_text
+        # FOR THE REMOTE MODELS APIs
+        return response.output_text
 
-        # FOR OLLAMA WITH OPENAI (LOCAL MODELS)
-        return response.choices[0].message.content
+        ## FOR OLLAMA WITH OPENAI (LOCAL MODELS)
+        # return response.choices[0].message.content
 
         # chat_history.append(self.construct_prompt(prompt, OpenAIRolesEnum.USER.value))
 
@@ -124,7 +119,7 @@ class OpenAIProvider(LLMInterface):
         #     return None
         # return response.choices[0].message["content"]
 
-    def embed_text(self, text: str, doc_type: str = None):
+    def embed_text(self, text: str | list[str], doc_type: str = None):
         # validate the client is initialized
         if not self.client:
             # raise ValueError("OpenAI client is not initialized.")
@@ -135,6 +130,9 @@ class OpenAIProvider(LLMInterface):
             # raise ValueError("Embedding model is not set.")
             self.logger.error("Embedding model is not set.")
             return None
+
+        if isinstance(text, str):
+            text = [text]
 
         response = self.client.embeddings.create(
             input=text,
@@ -150,7 +148,7 @@ class OpenAIProvider(LLMInterface):
             self.logger.error("Error while embedding text with OpenAI API.")
             return None
 
-        return response.data[0].embedding
+        return [rec.embedding for rec in response.data]
 
     def construct_prompt(self, prompt: str, role: str):
         # # we are using the new OpenAI method (Response API) rather than the old one (Chat Completions) so no need to construct the prompt.
@@ -160,5 +158,5 @@ class OpenAIProvider(LLMInterface):
         # )
         return {
             "role": role,
-            "content": self.process_text(prompt),
+            "content": prompt,
         }
