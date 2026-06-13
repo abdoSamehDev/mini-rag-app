@@ -21,3 +21,5 @@ class ResponseMessageEnums(Enum):
     VECTORDB_SEARCH_SUCCESS = "vectordb_search_success"
     RAG_ANSWER_ERROR = "rag_ansewr_error"
     RAG_ANSWER_SUCCESS = "rag_ansewr_success"
+    PROCESS_AND_PUSH_WORKFLOW_READY = "process_and_push_workflow_ready"
+    DATA_PUSH_TASK_READY = "data_push_task_ready"

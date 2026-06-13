@@ -4,4 +4,5 @@ from .schemes import (
     PgAsset as PgAsset,
     PgChunk as PgChunk,
     PgRetrievedDocument as PgRetrievedDocument,
+    CeleryTaskExecution as CeleryTaskExecution,
 )

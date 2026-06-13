@@ -7,18 +7,16 @@ from controllers import (
     ProjectController,
     ProcessController,
     ProjectDBController,
-    ChunkDBController,
     AssetDBController,
-    NLPController,
 )
 from helpers import get_settings, Settings, get_logger
 from models import (
     ResponseMessageEnums,
-    PgChunk as Chunk,
     PgAsset as Asset,
     AssetTypeEnums,
 )
 from .schemes import ProcessRequest
+from tasks import process_project_files, process_and_push_workflow
 
 data_router = APIRouter(prefix="/api/v1/data", tags=["api_v1", "data"])
 
@@ -111,117 +109,41 @@ async def process_endpoint(
     overlap_size = process_request.overlap_size
     do_reset = process_request.do_reset
 
-    project_db_controller = await ProjectDBController.create_instance(
-        request.app.db_client
-    )
-    asset_db_controller = await AssetDBController.create_instance(request.app.db_client)
-    chunk_db_controller = await ChunkDBController.create_instance(request.app.db_client)
-    nlp_controller = NLPController(
-        vectordb_client=request.app.vector_db_client,
-        generation_client=request.app.generation_client,
-        embedding_client=request.app.embedding_client,
-        template_parser=request.app.template_parser,
+    task = process_project_files.delay(
+        project_id=project_id,
+        file_id=file_id,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size,
+        do_reset=do_reset,
     )
 
-    process_controller = get_process_controller(project_id=project_id)
-
-    # get the project from db
-    project = await project_db_controller.get_project_or_create_one(
-        project_id=project_id
+    return JSONResponse(
+        content={
+            "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
+            "task_id": task.id,
+        },
     )
-    # get file to process
-    project_files_ids = {}
-    if file_id:
-        logger.info(
-            f"Processing specific file_id: {file_id} with project_id: {project_id}"
-        )
-        asset_record = await asset_db_controller.get_asset_record(
-            # asset_name=file_id, project_id=project_id
-            asset_project_id=project_id,
-            asset_name=file_id,
-        )
-        if asset_record is None:
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={"message": ResponseMessageEnums.FILE_ID_ERROR.value},
-            )
-        project_files_ids = {asset_record.asset_id: asset_record.asset_name}
-    else:
-        project_files = await asset_db_controller.get_all_project_assets(
-            asset_project_id=project_id,
-            asset_type=AssetTypeEnums.FILE.value,
-        )
-        logger.info(
-            f"Processing all files for project_id: {project_id}, total files: {len(project_files)}"
-        )
-        project_files_ids = {
-            record.asset_id: record.asset_name for record in project_files
-        }
-        logger.info(
-            f"Processing all files for project_id: {project_id}, total project_files_ids: {project_files_ids}"
-        )
-    if not project_files_ids or len(project_files_ids) == 0:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessageEnums.NO_FILES_ERROR.value},
-        )
 
-    # reset chunks if needed
-    if do_reset == 1:
-        # Delete the associated vectors collection
-        collection_name = nlp_controller.create_collection_name(project_id=project_id)
-        # logger.info(f"Deleting collection: {collection_name}")
-        _ = await request.app.vector_db_client.delete_collection(
-            collection_name=collection_name
-        )
 
-        # Delete the associated chunks
-        _ = await chunk_db_controller.delete_chunks_by_project_id(project_id=project_id)
+@data_router.post("/process-and-push/{project_id}")
+async def process_and_push_endpoint(project_id: int, process_request: ProcessRequest):
+    # setup request and controllers
+    file_id = process_request.file_id
+    chunk_size = process_request.chunk_size
+    overlap_size = process_request.overlap_size
+    do_reset = process_request.do_reset
 
-    # process files
-    no_record = 0
-    no_files = 0
+    workflow_task = process_and_push_workflow.delay(
+        project_id=project_id,
+        file_id=file_id,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size,
+        do_reset=do_reset,
+    )
 
-    try:
-        for asset_id, file_id in project_files_ids.items():
-            file_content = process_controller.get_file_content(file_id=file_id)
-            if file_content is None:
-                logger.error(f"No content found for file_id: {file_id}")
-                continue
-            file_chunks = process_controller.process_file_content(
-                chunk_size=chunk_size,
-                overlap_size=overlap_size,
-                file_content=file_content,
-            )
-
-            if file_chunks is None or len(file_chunks) == 0:
-                logger.error(f"Error while chunking file: {file_id}")
-                continue
-            file_chunks_records = [
-                Chunk(
-                    chunk_text=chunk.page_content,
-                    chunk_metadata=chunk.metadata,
-                    chunk_project_id=project_id,
-                    chunk_asset_id=asset_id,
-                    chunk_order=i + 1,
-                )
-                for i, chunk in enumerate(file_chunks)
-            ]
-            no_record += await chunk_db_controller.insert_many_chunks(
-                chunks=file_chunks_records
-            )
-            no_files += 1
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
-                "inserted_records": no_record,
-                "processed_files": no_files,
-            },
-        )
-    except Exception as e:
-        logger.error(f"Error processing file: {e}")
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessageEnums.PROCESSING_FAILED.value},
-        )
+    return JSONResponse(
+        content={
+            "message": ResponseMessageEnums.PROCESS_AND_PUSH_WORKFLOW_READY.value,
+            "workflow_task_id": workflow_task.id,
+        },
+    )

@@ -5,6 +5,7 @@ from models import ResponseMessageEnums
 from .schemes import PushRequest, SearchRequest
 from tqdm.auto import tqdm
 from helpers import get_logger
+from tasks import index_data_content
 
 nlp_router = APIRouter(prefix="/api/v1/nlp", tags=["api_v1", "nlp"])
 
@@ -13,93 +14,14 @@ logger = get_logger()
 
 @nlp_router.post("/index/push/{project_id}")
 async def index_project(req: Request, project_id: int, push_request: PushRequest):
-    project_db_controller = await ProjectDBController.create_instance(
-        db_client=req.app.db_client
+
+    task = index_data_content.delay(
+        project_id=project_id, do_reset=push_request.do_reset
     )
-
-    chunk_db_controller = await ChunkDBController.create_instance(
-        db_client=req.app.db_client
-    )
-
-    logger.info(f"EMBEDDING CLIENT: {req.app.embedding_client}")
-
-    nlp_controller = NLPController(
-        vectordb_client=req.app.vector_db_client,
-        embedding_client=req.app.embedding_client,
-        generation_client=req.app.generation_client,
-        template_parser=req.app.template_parser,
-    )
-
-    project = await project_db_controller.get_project_or_create_one(
-        project_id=project_id
-    )
-
-    if not project:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"message": ResponseMessageEnums.PROJECT_NOT_FOUND_ERROR.value},
-        )
-
-    has_records = True
-    page_no = 1
-    inserted_items_count = 0
-    idx = 0
-
-    # create collection if not exists
-    collection_name = nlp_controller.create_collection_name(project_id=project_id)
-
-    _ = await req.app.vector_db_client.create_collection(
-        collection_name=collection_name,
-        embedding_size=req.app.embedding_client.embedding_size,
-        do_reset=push_request.do_reset,
-    )
-
-    # setup batching
-    total_chunks_count = await chunk_db_controller.get_total_chunks_count(
-        project_id=project_id
-    )
-
-    logger.info(f"Total chunks for {collection_name}: {total_chunks_count}")
-    pbar = tqdm(total=total_chunks_count, desc="Vector Indexing", position=0)
-
-    while has_records:
-        logger.info(f"Getting project chunks for project id: {project_id}")
-        page_chunks = await chunk_db_controller.get_project_chunks(
-            project_id=project.project_id, page_no=page_no
-        )
-        logger.info(
-            f"Processing page {page_no} with {len(page_chunks)} chunks for project_id: {project_id}"
-        )
-        if len(page_chunks):
-            page_no += 1
-        if not page_chunks or len(page_chunks) == 0:
-            has_records = False
-            break
-
-        chunk_ids = [c.chunk_id for c in page_chunks]
-        idx += len(page_chunks)
-
-        is_inserted = await nlp_controller.index_into_vector_db(
-            project=project,
-            chunks=page_chunks,
-            chunk_ids=chunk_ids,
-        )
-
-        if not is_inserted:
-            return JSONResponse(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                content={
-                    "message": ResponseMessageEnums.INSERT_INTO_VECTORDB_ERROR.value
-                },
-            )
-
-        pbar.update(len(page_chunks))
-        inserted_items_count += len(page_chunks)
     return JSONResponse(
-        status_code=status.HTTP_200_OK,
         content={
-            "message": ResponseMessageEnums.INSERT_INTO_VECTORDB_SUCCESS.value,
-            "inserted_items_count": inserted_items_count,
+            "message": ResponseMessageEnums.DATA_PUSH_TASK_READY.value,
+            "workflow_task_id": task.id,
         },
     )
 
