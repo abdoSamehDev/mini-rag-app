@@ -4,7 +4,7 @@ This is a minimal implementation of the RAG model for question answering.
 
 ## Requirements
 
-- Python 3.10
+- Python 3.14
 
 #### Install Dependencies
 
@@ -110,7 +110,3 @@ $ python -m celery -A celery_app flower --conf=flowerconfig.py
 
 
 open your browser and go to `http://localhost:5555` to see the dashboard.
-
-## POSTMAN Collection
-
-Download the POSTMAN collection from [/assets/mini-rag-app.postman_collection.json](/assets/mini-rag-app.postman_collection.json)
