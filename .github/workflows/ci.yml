@@ -15,8 +15,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install ruff
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff check)
+        # Rules come from ruff.toml (errors-only for now)
+        run: ruff check src --output-format github
+
+      - name: Format check (ruff format)
+        # Fix locally with: ruff format src
+        run: ruff format --check --diff src
+
   app:
-    name: Lint, migrations & smoke test
+    name: Migrations & smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -83,11 +108,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r src/requirements.txt ruff
-
-      - name: Lint (errors only)
-        # Only rules that indicate real bugs: syntax errors, undefined names, etc.
-        run: ruff check src --select E9,F63,F7,F82 --output-format github
+          pip install -r src/requirements.txt
 
       - name: Import check (API, Celery app, tasks)
         working-directory: src
