@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: Lint, migrations & smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      pgvector:
+        # Keep in sync with the pgvector image in docker/docker-compose.yml
+        image: pgvector/pgvector:0.8.2-pg18-trixie
+        env:
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: minirag
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Dummy settings so helpers.config.Settings validates. No real LLM calls are made.
+      APP_NAME: mini-RAG
+      APP_VERSION: ci
+      FILE_ALLOWED_TYPES: '["application/pdf", "text/plain"]'
+      FILE_MAX_SIZE: "10"
+      FILE_DEFAULT_CHUNK_SIZE: "512000"
+      MONGODB_URL: mongodb://localhost:27017
+      MONGODB_DB_NAME: minirag
+      POSTGRES_USERNAME: postgres
+      POSTGRES_PASSWORD: ci_password
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_MAIN_DATABASE: minirag
+      GENERATION_BACKEDND: OPENAI
+      EMBEDDING_BACKEDND: COHERE
+      OPENAI_API_KEY: ci-dummy
+      OPENAI_API_URL: https://api.openai.com/v1
+      COHERE_API_KEY: ci-dummy
+      GENERATION_MODEL_ID: ci-dummy-model
+      EMBEDDING_MODEL_ID: embed-multilingual-v3.0
+      EMBEDDING_MODEL_SIZE: "1024"
+      INPUT_DEFAULT_MAX_CHARACTERS: "1024"
+      GENERATION_DEFAULT_MAX_TOKENS: "200"
+      GENERATION_DEFAULT_TEMPERATURE: "0.1"
+      VECTOR_DB_BACKEND: PGVECTOR
+      VECTOR_DB_PATH: qdrant_db
+      VECTOR_DB_DISTANCE_METHOD: COSINE
+      CELERY_BROKER_URL: memory://
+      CELERY_RESULT_BACKEND: cache+memory://
+      CELERY_FLOWER_PASSWORD: ci-dummy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Keep in sync with the base image in docker/minirag/Dockerfile
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: src/requirements.txt
+
+      - name: Install system packages
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpq-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r src/requirements.txt ruff
+
+      - name: Lint (errors only)
+        # Only rules that indicate real bugs: syntax errors, undefined names, etc.
+        run: ruff check src --select E9,F63,F7,F82 --output-format github
+
+      - name: Import check (API, Celery app, tasks)
+        working-directory: src
+        run: |
+          python - <<'EOF'
+          import main  # noqa: F401  FastAPI app and routers
+          from celery_app import celery_app
+          import tasks  # noqa: F401  registers every task
+
+          expected = {
+              "tasks.file_processing.process_project_files",
+              "tasks.data_indexing.index_data_content",
+              "tasks.maintenance.clean_celery_executions_table",
+              "tasks.process_workflow.process_and_push_workflow",
+              "tasks.process_workflow.push_after_process_task",
+          }
+          missing = expected - set(celery_app.tasks)
+          assert not missing, f"Celery tasks not registered: {missing}"
+          print("All imports OK, Celery tasks registered:", sorted(expected))
+          EOF
+
+      - name: Alembic migrations (upgrade, downgrade, upgrade)
+        working-directory: src/models/db_schemes/minirag
+        run: |
+          sed "s#^sqlalchemy.url = .*#sqlalchemy.url = postgresql://postgres:${POSTGRES_PASSWORD}@localhost:5432/minirag#" \
+            alembic.example.ini > alembic.ini
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          alembic current
+
+      - name: API smoke test
+        working-directory: src
+        run: |
+          uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/uvicorn.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/api/v1/ && break
+            sleep 1
+          done
+          echo
+          curl -sf http://127.0.0.1:8000/api/v1/ | grep -q "Welcome to mini-RAG"
+          curl -sf -o /dev/null http://127.0.0.1:8000/docs
+          curl -sf -o /dev/null http://127.0.0.1:8000/openapi.json
+          echo "API smoke test passed"
+
+      - name: Show API log on failure
+        if: failure()
+        run: cat /tmp/uvicorn.log || true
+
+  docker:
+    name: Docker build & compose config
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create env files from examples
+        run: |
+          cp docker/.env.example docker/.env
+          for f in docker/env/.env.example.*; do
+            cp "$f" "docker/env/.env.${f##*.env.example.}"
+          done
+          cp docker/minirag/alembic.example.ini docker/minirag/alembic.ini
+
+      - name: Validate docker-compose.yml
+        working-directory: docker
+        run: docker compose config -q
+
+      - name: Check shell scripts use LF line endings
+        run: |
+          if grep -rlI $'\r' --include='*.sh' .; then
+            echo "::error::Shell scripts above contain CRLF line endings"
+            exit 1
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/minirag/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
