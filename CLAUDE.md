@@ -25,6 +25,13 @@ one line to **Change log** at the bottom (`YYYY-MM-DD — what changed — PR li
 Remove information that is no longer true. Keep it concise: facts, commands, and
 gotchas, not narration. Never write secrets (keys, passwords) into this file.
 
+A Claude Code **Stop hook is committed with the repo** so this works on any machine
+that clones it: `.claude/settings.json` registers `.claude/hooks/claude-md-reminder.sh`.
+After a turn that changed files (uncommitted or new commits) without touching this file,
+it asks Claude to update CLAUDE.md if anything important changed — once per new set of
+changes, never in a loop. It needs only bash + git (Git Bash on Windows). If a global copy
+exists in `~/.claude/hooks/`, that copy stands aside for this repo so the check runs once.
+
 ---
 
 ## Tech stack
@@ -68,6 +75,8 @@ docker/
   env/.env.example.*         # templates for env/.env.* (real files are gitignored)
   nginx/, prometheus/, rabbitmq/
 .github/workflows/ci.yml     # CI (see below)
+.claude/                     # Claude Code project config: settings.json + hooks/claude-md-reminder.sh
+ruff.toml, requirements-dev.txt   # lint/format config + dev tools (ruff)
 ```
 
 Legacy note: MongoDB (`motor`, `MONGODB_URL`) is left over from before the move to
@@ -241,3 +250,4 @@ New Alembic migrations are auto-formatted by a ruff `post_write_hook` configured
 - 2026-11-09 — Switched Groq model `llama-3.3-70b-versatile` (retired) → `openai/gpt-oss-120b` in local env files (not in git)
 - 2026-11-09 — Added CI workflow (lint & format, migrations & smoke test, Docker build), `ruff.toml`, `requirements-dev.txt`, this CLAUDE.md; formatted Alembic files; fixed `Settings` optional fields typed without `| None` (startup crash without a full `.env`) — [#5](https://github.com/abdoSamehDev/mini-rag-app/pull/5)
 - 2026-11-09 — Protected `main` (3 required CI checks) and enabled opt-in auto-merge
+- 2026-11-09 — Committed the CLAUDE.md reminder Stop hook (`.claude/settings.json` + `.claude/hooks/`) so it travels with the repo — [#5](https://github.com/abdoSamehDev/mini-rag-app/pull/5)
