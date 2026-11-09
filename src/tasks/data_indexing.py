@@ -75,7 +75,7 @@ async def _index_data_content(task_instance, project_id: int, do_reset: int):
         # create collection if not exists
         collection_name = nlp_controller.create_collection_name(project_id=project_id)
 
-        _ = await db_client.create_collection(
+        _ = await vector_db_client.create_collection(
             collection_name=collection_name,
             embedding_size=embedding_client.embedding_size,
             do_reset=do_reset,

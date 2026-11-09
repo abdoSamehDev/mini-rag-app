@@ -2,7 +2,7 @@ from celery import chain
 from celery_app import celery_app
 import asyncio
 from .file_processing import process_project_files
-from .data_indexing import index_data_content
+from .data_indexing import _index_data_content
 
 import logging
 
@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 def push_after_process_task(self, prev_task_results):
     project_id = prev_task_results.get("project_id")
     do_reset = prev_task_results.get("do_reset")
-    task_results = asyncio.run(index_data_content(self, project_id, do_reset))
+    if project_id is None:
+        raise ValueError(f"process step returned no project_id: {prev_task_results}")
+    task_results = asyncio.run(_index_data_content(self, project_id, do_reset))
     return {
         "project_id": project_id,
         "do_reset": do_reset,
