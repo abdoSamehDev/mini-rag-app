@@ -152,7 +152,7 @@ async def _process_project_files(
             )
             if asset_record is None:
                 task_instance.update_state(
-                    statue="FAILURE",
+                    state="FAILURE",
                     meta={"message": ResponseMessageEnums.FILE_ID_ERROR.value},
                 )
 
@@ -178,7 +178,7 @@ async def _process_project_files(
 
         if not project_files_ids or len(project_files_ids) == 0:
             task_instance.update_state(
-                statue="FAILURE",
+                state="FAILURE",
                 meta={"message": ResponseMessageEnums.NO_FILES_ERROR.value},
             )
             # Update task status to FAILURE
@@ -241,34 +241,35 @@ async def _process_project_files(
                 )
                 no_files += 1
             task_instance.update_state(
-                statue="SUCCESS",
+                state="SUCCESS",
                 meta={"message": ResponseMessageEnums.PROCESSING_SUCCESS.value},
             )
 
-            # Update task status to SUCCESS
+            task_result = {
+                "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
+                "inserted_records": no_record,
+                "processed_files": no_files,
+                "project_id": project_id,
+                "do_reset": do_reset,
+            }
+
+            # Update task status to SUCCESS (store the full result so a
+            # deduplicated re-run can still feed the next chain step)
             await idempotency_manager.update_task_status(
                 execution_id=task_record.execution_id,
                 status="SUCCESS",
-                result={"message": ResponseMessageEnums.PROCESSING_SUCCESS.value},
+                result=task_result,
             )
 
             # logger.info(f"inserted_chunks: {no_record}")
             logger.warning(f"inserted_chunks: {no_record}")
             # logger.error(f"inserted_chunks: {no_record}")
 
-            return (
-                {
-                    "message": ResponseMessageEnums.PROCESSING_SUCCESS.value,
-                    "inserted_records": no_record,
-                    "processed_files": no_files,
-                    "project_id": project_id,
-                    "do_reset": do_reset,
-                },
-            )
+            return task_result
 
         except Exception as e:
             task_instance.update_state(
-                statue="FAILURE",
+                state="FAILURE",
                 meta={"message": ResponseMessageEnums.PROCESSING_FAILED.value},
             )
             raise Exception(f"{ResponseMessageEnums.PROCESSING_FAILED.value}: {e}")
