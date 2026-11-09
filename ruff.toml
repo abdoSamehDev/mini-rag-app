@@ -1,0 +1,8 @@
+# Ruff config shared by local runs and CI (`ruff check src`, `ruff format --check src`)
+target-version = "py314"
+line-length = 88
+
+[lint]
+# Errors-only: syntax errors, undefined names, invalid comparisons, misplaced
+# statements. Widen this once the existing style warnings are cleaned up.
+select = ["E9", "F63", "F7", "F82"]
