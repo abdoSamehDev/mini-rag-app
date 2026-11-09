@@ -77,7 +77,7 @@ celery_app.conf.update(
     # Time limits - Prevent hanging tasks
     task_time_limit=settings.CELERY_TASK_TIME_LIMIT,
     # Result backend - Store results for status tracking
-    task_ignore_resul=False,
+    task_ignore_result=False,
     result_expires=3600,
     # Worker settings
     worker_concurrency=settings.CELERY_WORKER_CONCURRENCY,
