@@ -123,7 +123,7 @@ services:
       redis:
         condition: service_healthy
     
-    command: ["python", "-m", "celery", "-A", "celery_app", "beat", "--loglevel=info"]
+    command: ["python", "-m", "celery", "-A", "celery_app", "beat", "--schedule=/app/celerybeat/celerybeat-schedule", "--loglevel=info"]
 
     #Celery Flower
   flower:
@@ -384,3 +384,4 @@ volumes:
   grafana_data:
   rabbitmq_data:
   redis_data:
+  celery_beat_data:
