@@ -173,17 +173,39 @@ Task endpoints return a Celery task id immediately; follow progress in Flower or
 
 ## CI (`.github/workflows/ci.yml`)
 
-Runs on every PR to `main`, on pushes to `main`, and manually.
+Runs on every PR to `main`, on pushes to `main`, and manually. Three jobs (these exact
+names are the **required status checks** on `main` — renaming a job means updating
+branch protection too):
 
-1. **Lint, migrations & smoke test** — `ruff` (errors-only rules `E9,F63,F7,F82`),
-   import check of `main`/`celery_app`/`tasks` (asserts all 5 tasks are registered),
-   Alembic upgrade→downgrade→upgrade on a fresh pgvector service, and a Uvicorn
-   startup smoke test (`/api/v1/`, `/docs`, `/openapi.json`) with dummy settings and no `.env`.
-2. **Docker build & compose config** — `docker compose config -q` using the example
+1. **Lint & format** — `ruff check src` (rules in `ruff.toml`; errors-only for now) and
+   `ruff format --check src`.
+2. **Migrations & smoke test** — import check of `main`/`celery_app`/`tasks` (asserts
+   all 5 tasks are registered), Alembic upgrade→downgrade→upgrade on a fresh pgvector
+   service, and a Uvicorn startup smoke test (`/api/v1/`, `/docs`, `/openapi.json`)
+   with dummy settings and no `.env`.
+3. **Docker build & compose config** — `docker compose config -q` using the example
    env files, CRLF check on `*.sh`, and a full build of the app image.
 
 No real LLM/embedding calls run in CI (no secrets). Full RAG flow is tested manually:
 upload → process-and-push → index/info → search → answer against a throwaway project id.
+
+Before pushing, run locally (tools from `requirements-dev.txt`):
+
+```bash
+ruff format src && ruff check src
+```
+
+New Alembic migrations are auto-formatted by a ruff `post_write_hook` configured in
+`alembic.example.ini` (copy it into your local `alembic.ini`).
+
+### Merging & auto-merge
+
+- `main` is protected: the 3 CI checks must pass and branches must be up to date
+  before merging. No review approval is required (solo project). Admins can bypass in
+  an emergency.
+- Auto-merge is **opt-in per PR**: `gh pr merge <n> --auto --merge` → GitHub merges
+  with a merge commit as soon as all checks are green. Without `--auto`, PRs wait
+  for a manual merge.
 
 ## Git workflow & conventions
 
@@ -217,4 +239,5 @@ upload → process-and-push → index/info → search → answer against a throw
 - 2026-11-09 — Revived the project: declared `celery_beat_data` volume (Celery services were never created), stopped migration `2e355a8da05b` from dropping vector tables + `include_object` filter, fixed `task_ignore_result` typo — [#3](https://github.com/abdoSamehDev/mini-rag-app/pull/3)
 - 2026-11-09 — Fixed process-and-push workflow (tuple return, wrong task invocation, `create_collection` on sessionmaker, `statue` typo, idempotency stored result) and LF for `*.sh` — [#4](https://github.com/abdoSamehDev/mini-rag-app/pull/4)
 - 2026-11-09 — Switched Groq model `llama-3.3-70b-versatile` (retired) → `openai/gpt-oss-120b` in local env files (not in git)
-- 2026-11-09 — Added CI workflow, this CLAUDE.md, and fixed `Settings` optional fields typed without `| None` (startup crash without a full `.env`)
+- 2026-11-09 — Added CI workflow (lint & format, migrations & smoke test, Docker build), `ruff.toml`, `requirements-dev.txt`, this CLAUDE.md; formatted Alembic files; fixed `Settings` optional fields typed without `| None` (startup crash without a full `.env`) — [#5](https://github.com/abdoSamehDev/mini-rag-app/pull/5)
+- 2026-11-09 — Protected `main` (3 required CI checks) and enabled opt-in auto-merge
